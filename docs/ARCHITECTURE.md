@@ -1,0 +1,362 @@
+# Architecture
+
+This document is the architectural source of truth for the Trip Planner backend. It is written for humans and AI agents that will extend the system over time.
+
+## 1. High-Level Architecture
+
+The backend is a modular monolith built with Node.js, TypeScript, Express.js, PostgreSQL, Prisma, Redis, BullMQ, and Docker.
+
+```text
+Client
+  -> Express HTTP API
+  -> Route middleware
+  -> Controller
+  -> Service
+  -> Repository
+  -> Prisma
+  -> PostgreSQL
+
+Background work:
+Service -> BullMQ Queue -> Worker -> Repository/External provider
+
+Shared runtime:
+Redis for cache, queues, rate limiting, and future realtime/session support
+```
+
+Why: a modular monolith gives a solo developer or small team strong boundaries without microservice deployment, network, and data consistency costs. The system can scale vertically first, then horizontally by running more API and worker containers.
+
+## 2. Architectural Principles
+
+- Keep the system simple until real pressure requires more complexity.
+- Keep business rules in services, not controllers or repositories.
+- Keep database access behind repositories.
+- Keep module boundaries clear and explicit.
+- Prefer boring, readable code over clever abstractions.
+- Optimize for fast onboarding and AI-assisted consistency.
+- Use shared infrastructure only for cross-cutting concerns.
+- Add abstractions only when they remove repeated complexity.
+
+## 3. Modular Monolith Design
+
+Each business capability lives in `src/modules/<module-name>`.
+
+```text
+src/modules/trips/
+  trips.controller.ts
+  trips.service.ts
+  trips.repository.ts
+  trips.schemas.ts
+  trips.routes.ts
+```
+
+A module owns its HTTP surface, validation, business logic, and data access for that capability. Modules may call another module service when they need its business rule, such as itinerary calling trip permission checks.
+
+Why: this keeps code easy to find and prevents a global MVC structure from becoming a tangle of unrelated controllers, services, and models.
+
+## 4. Folder Structure
+
+```text
+src/
+  app.ts                  # Express app composition
+  server.ts               # HTTP server lifecycle
+  routes.ts               # API route composition
+  config/                 # Environment and infrastructure clients
+  prisma/                 # Prisma client singleton
+  common/                 # Cross-cutting framework code
+  modules/                # Business modules
+  jobs/                   # Queue definitions and enqueue helpers
+  workers/                # BullMQ worker entrypoints
+
+prisma/
+  schema.prisma
+  seed.ts
+  migrations/
+
+tests/
+  integration/
+  setup.ts
+```
+
+`src/common` must stay small. It is for middleware, errors, logging, shared response helpers, storage interfaces, and common types. Business-specific helpers belong inside their module.
+
+## 5. Module Boundaries
+
+Allowed dependencies:
+
+```text
+controller -> service -> repository -> prisma
+routes -> controller
+module service -> another module service, only for business rules
+common/config -> no business module imports
+```
+
+Forbidden dependencies:
+
+```text
+controller -> prisma
+controller -> repository
+repository -> service
+common -> modules
+module A repository -> module B repository
+```
+
+Why: dependency direction prevents cycles and keeps each layer easy to reason about.
+
+## 6. Request Lifecycle
+
+```text
+HTTP request
+  -> requestIdMiddleware
+  -> httpLogger
+  -> helmet/cors/compression/body parsing
+  -> rate limiter
+  -> route
+  -> optional authenticate middleware
+  -> validateRequest(Zod schema)
+  -> controller
+  -> service
+  -> repository
+  -> response helper
+  -> errorHandler if needed
+```
+
+Controllers should only extract request data, call services, and return formatted responses.
+
+```ts
+create = async (req, res) => {
+  const trip = await this.service.createTrip(req.user.id, req.body);
+  return sendCreated(res, { trip });
+};
+```
+
+## 7. Database Access Flow
+
+All normal database access flows through Prisma repositories.
+
+```text
+Service method
+  -> Repository method
+  -> Prisma query
+  -> PostgreSQL
+```
+
+Why: repositories provide one place to adjust query shape, includes, pagination, and persistence details without rewriting business logic.
+
+## 8. Repository Pattern Usage
+
+Repositories:
+
+- contain Prisma queries
+- hide persistence details from services
+- return domain-relevant records or query results
+- do not contain authorization decisions
+- do not format HTTP responses
+- do not call Express APIs
+
+Example:
+
+```ts
+export class TripsRepository {
+  findById(id: string) {
+    return prisma.trip.findUnique({
+      where: { id },
+      include: { destinations: true, days: true }
+    });
+  }
+}
+```
+
+## 9. Service Responsibilities
+
+Services own business rules and orchestration.
+
+Services should:
+
+- enforce permissions
+- validate domain state not covered by Zod
+- coordinate multiple repositories or queues
+- open transactions when a workflow must be atomic
+- translate persistence results into domain behavior
+
+Services should not know about `Request`, `Response`, route paths, or HTTP status codes.
+
+## 10. Background Job Architecture
+
+Jobs are used for work that should not block HTTP responses:
+
+- notification delivery
+- email sending
+- AI itinerary generation
+- recommendation refreshes
+- analytics events
+- file processing
+
+```text
+Service
+  -> enqueue helper in src/jobs
+  -> BullMQ queue
+  -> worker in src/workers
+  -> service/repository/external provider
+```
+
+Why: the API stays responsive and retries are handled by BullMQ instead of custom retry loops.
+
+## 11. Redis Usage Strategy
+
+Redis supports four concerns:
+
+- Cache: short-lived read optimization.
+- Queues: BullMQ storage and coordination.
+- Rate limiting: distributed request limiting.
+- Future realtime/session support: websocket coordination, presence, and session lookup.
+
+Use Redis through `src/config/redis.ts` or BullMQ queue helpers. Do not create ad hoc Redis clients inside modules.
+
+## 12. Error Handling Architecture
+
+All operational errors should extend `AppError`.
+
+```text
+AppError
+  ValidationError
+  AuthError
+  AuthorizationError
+  NotFoundError
+  ConflictError
+```
+
+The global error handler converts thrown errors into consistent API responses.
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "Trip not found"
+  }
+}
+```
+
+Why: consistent error shapes are easier for clients, tests, logs, and AI agents to reason about.
+
+## 13. Validation Architecture
+
+Zod validates request `body`, `params`, and `query` at route boundaries.
+
+```ts
+tripsRouter.post(
+  '/',
+  validateRequest(createTripSchema),
+  asyncHandler(tripsController.create)
+);
+```
+
+Zod handles input shape. Services handle domain rules that require database state, permissions, or multi-entity checks.
+
+## 14. Logging Strategy
+
+Pino is the structured logger. Logs must be JSON in production and readable in development.
+
+Log:
+
+- request IDs
+- job IDs
+- important business workflow transitions
+- unexpected errors
+- external provider failures
+
+Do not log:
+
+- passwords
+- raw tokens
+- authorization headers
+- full third-party payloads with secrets
+
+## 15. Authentication Architecture
+
+Authentication uses:
+
+- JWT access tokens for short-lived API authorization
+- refresh token rotation for long-lived sessions
+- hashed refresh token persistence
+- token families to detect reuse
+- middleware to attach `req.user`
+
+```text
+login/register -> issue access token + refresh token
+refresh -> verify token -> revoke old token -> issue new pair
+reuse of revoked token -> revoke entire token family
+logout -> revoke refresh token
+```
+
+The schema is ready for OAuth accounts, email verification, and multi-device sessions without changing unrelated modules.
+
+## 16. Queue Architecture
+
+Queue names live in `src/jobs/queue-names.ts`. Queue instances and enqueue helpers live in `src/jobs/*.queue.ts`. Workers live in `src/workers`.
+
+```ts
+export const notificationQueue = new Queue<NotificationJobData>(
+  QUEUE_NAMES.NOTIFICATIONS,
+  queueOptions
+);
+```
+
+Why: keeping queue contracts in one place prevents workers and services from drifting apart.
+
+## 17. Scalability Strategy
+
+Scale in this order:
+
+1. Optimize database indexes and query shape.
+2. Add targeted Redis caching for high-read, low-change data.
+3. Move slow work to BullMQ workers.
+4. Run multiple API containers behind a load balancer.
+5. Run multiple worker containers by queue type.
+6. Add read replicas or search infrastructure only when product usage justifies it.
+
+Do not split into microservices until the monolith has clear independent scaling pain and stable ownership boundaries.
+
+## 18. Future Extensibility Considerations
+
+The current structure should support:
+
+- AI itinerary generation in a dedicated module or job workflow
+- recommendation systems using trip, place, and preference metadata
+- realtime collaboration using Redis-backed websocket coordination
+- file uploads through the object storage interface
+- search using a future search module
+- analytics through queue-backed events
+- notification delivery through worker processors
+
+Future integrations should enter through module services or provider interfaces, not through controllers.
+
+## 19. Dependency Rules
+
+Use these dependency rules:
+
+```text
+src/common -> shared infrastructure only
+src/config -> runtime configuration only
+src/modules/<name> -> module-local business capability
+src/jobs -> queue contracts and enqueue functions
+src/workers -> job processors
+src/prisma -> Prisma client lifecycle
+```
+
+When one module needs another module's rule, call the other module's service. Do not import its repository.
+
+## 20. Anti-Patterns To Avoid
+
+- Prisma calls in controllers.
+- Business logic in route files.
+- Massive shared `utils` folders.
+- Catching errors only to rethrow generic errors.
+- Creating new Redis, Prisma, or queue clients inside modules.
+- Cross-module repository imports.
+- Circular dependencies.
+- God services that own multiple domains.
+- Premature event-driven workflows.
+- CQRS without real read/write model pressure.
+- Microservices for organizational style rather than operational need.
+- New abstractions without repeated use or clear simplification.

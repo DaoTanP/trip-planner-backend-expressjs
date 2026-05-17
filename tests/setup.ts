@@ -1,0 +1,14 @@
+process.env.NODE_ENV = 'test';
+process.env.APP_NAME = 'trip-planner-api-test';
+process.env.APP_PORT = '3000';
+process.env.API_PREFIX = '/api/v1';
+process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/trip_planner_test?schema=public';
+process.env.REDIS_URL = 'redis://localhost:6379';
+process.env.JWT_ACCESS_SECRET = 'test-access-secret-with-at-least-32-chars';
+process.env.JWT_REFRESH_SECRET = 'test-refresh-secret-with-at-least-32-chars';
+process.env.JWT_ACCESS_EXPIRES_IN = '15m';
+process.env.JWT_REFRESH_EXPIRES_IN_DAYS = '30';
+process.env.CORS_ORIGINS = 'http://localhost:5173';
+process.env.RATE_LIMIT_WINDOW_MS = '900000';
+process.env.RATE_LIMIT_MAX = '1000';
+process.env.LOG_LEVEL = 'silent';

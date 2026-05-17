@@ -1,0 +1,98 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    command: sh -c "npm install && npm run prisma:generate && npm run prisma:deploy && npm run dev"
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    environment:
+      NODE_ENV: development
+      APP_NAME: trip-planner-api
+      APP_PORT: 3000
+      API_PREFIX: /api/v1
+      DATABASE_URL: postgresql://${POSTGRES_USER:-trip_planner}:${POSTGRES_PASSWORD:-trip_planner_password}@postgres:5432/${POSTGRES_DB:-trip_planner}?schema=public
+      REDIS_URL: redis://redis:6379
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-dev-access-secret-change-me-32-characters}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev-refresh-secret-change-me-32-characters}
+      JWT_ACCESS_EXPIRES_IN: 15m
+      JWT_REFRESH_EXPIRES_IN_DAYS: 30
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
+      RATE_LIMIT_WINDOW_MS: 900000
+      RATE_LIMIT_MAX: 300
+      MAIL_HOST: mailhog
+      MAIL_PORT: 1025
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    command: sh -c "npm install && npm run prisma:generate && npm run prisma:deploy && npm run worker:dev"
+    environment:
+      NODE_ENV: development
+      APP_NAME: trip-planner-worker
+      APP_PORT: 3000
+      API_PREFIX: /api/v1
+      DATABASE_URL: postgresql://${POSTGRES_USER:-trip_planner}:${POSTGRES_PASSWORD:-trip_planner_password}@postgres:5432/${POSTGRES_DB:-trip_planner}?schema=public
+      REDIS_URL: redis://redis:6379
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-dev-access-secret-change-me-32-characters}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev-refresh-secret-change-me-32-characters}
+      JWT_ACCESS_EXPIRES_IN: 15m
+      JWT_REFRESH_EXPIRES_IN_DAYS: 30
+      MAIL_HOST: mailhog
+      MAIL_PORT: 1025
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  postgres:
+    image: postgis/postgis:16-3.4-alpine
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-trip_planner}
+      POSTGRES_USER: ${POSTGRES_USER:-trip_planner}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-trip_planner_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-trip_planner} -d ${POSTGRES_DB:-trip_planner}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    ports:
+      - "${MAILHOG_SMTP_PORT:-1025}:1025"
+      - "${MAILHOG_UI_PORT:-8025}:8025"
+
+volumes:
+  postgres_data:
+  redis_data:
