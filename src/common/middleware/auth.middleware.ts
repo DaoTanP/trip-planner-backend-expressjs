@@ -9,7 +9,7 @@ export const authenticate: RequestHandler = (req, _res, next) => {
   const header = req.header('authorization');
 
   if (!header?.startsWith('Bearer ')) {
-    next(new AuthError('Missing bearer token'));
+    next(new AuthError({ messageKey: 'errors.auth.missingBearer' }));
     return;
   }
 
@@ -29,7 +29,7 @@ export const requireRole =
   (...roles: AuthenticatedUser['role'][]): RequestHandler =>
   (req, _res, next) => {
     if (!req.user) {
-      next(new AuthError('Missing authenticated user'));
+      next(new AuthError({ messageKey: 'errors.auth.missingUser' }));
       return;
     }
 

@@ -29,13 +29,15 @@ export class AuthService {
   async register(input: RegisterInput, context: AuthRequestContext): Promise<AuthResult> {
     const existingUser = await this.repository.findUserByEmail(input.email);
     if (existingUser) {
-      throw new ConflictError('Email is already registered');
+      throw new ConflictError({ messageKey: 'errors.conflict.emailRegistered' });
     }
 
     const passwordHash = await bcrypt.hash(input.password, 12);
     const user = await this.repository.createUser({
       email: input.email,
       name: input.name,
+      locale: input.locale,
+      timezone: input.timezone,
       passwordHash
     });
 
@@ -53,16 +55,16 @@ export class AuthService {
   async login(input: LoginInput, context: AuthRequestContext): Promise<AuthResult> {
     const user = await this.repository.findUserByEmail(input.email);
     if (!user?.passwordHash) {
-      throw new AuthError('Invalid email or password');
+      throw new AuthError({ messageKey: 'errors.auth.invalidCredentials' });
     }
 
     const passwordMatches = await bcrypt.compare(input.password, user.passwordHash);
     if (!passwordMatches) {
-      throw new AuthError('Invalid email or password');
+      throw new AuthError({ messageKey: 'errors.auth.invalidCredentials' });
     }
 
     if (user.status === 'DISABLED') {
-      throw new AuthError('Account is disabled');
+      throw new AuthError({ messageKey: 'errors.auth.accountDisabled' });
     }
 
     return {
@@ -87,22 +89,22 @@ export class AuthService {
       persistedToken.userId !== payload.sub ||
       persistedToken.familyId !== payload.familyId
     ) {
-      throw new AuthError('Refresh token is not recognized');
+      throw new AuthError({ messageKey: 'errors.auth.refreshTokenNotRecognized' });
     }
 
     if (persistedToken.revokedAt) {
       await this.repository.revokeTokenFamily(persistedToken.familyId);
-      throw new AuthError('Refresh token reuse detected');
+      throw new AuthError({ messageKey: 'errors.auth.refreshTokenReuseDetected' });
     }
 
     if (persistedToken.expiresAt.getTime() <= Date.now()) {
       await this.repository.revokeRefreshToken(persistedToken.id);
-      throw new AuthError('Refresh token expired');
+      throw new AuthError({ messageKey: 'errors.auth.refreshTokenExpired' });
     }
 
     if (persistedToken.user.status === 'DISABLED') {
       await this.repository.revokeTokenFamily(persistedToken.familyId);
-      throw new AuthError('Account is disabled');
+      throw new AuthError({ messageKey: 'errors.auth.accountDisabled' });
     }
 
     await this.repository.revokeRefreshToken(persistedToken.id);

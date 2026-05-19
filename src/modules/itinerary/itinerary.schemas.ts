@@ -1,8 +1,11 @@
 import { ActivityStatus } from '@prisma/client';
 import { z } from 'zod';
 
+import { DEFAULT_TIMEZONE } from '@/common/localization/locales.js';
+import { dateOnlyStringSchema, timezoneSchema } from '@/common/localization/schemas.js';
+
 const uuidParam = z.string().uuid();
-const dateOnlySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected date in YYYY-MM-DD format');
+const dateOnlySchema = dateOnlyStringSchema;
 const dateTimeSchema = z.string().datetime();
 
 export const listDaysSchema = z.object({
@@ -35,7 +38,7 @@ export const createActivitySchema = z.object({
       description: z.string().trim().max(5000).optional(),
       startTime: dateTimeSchema.optional(),
       endTime: dateTimeSchema.optional(),
-      timezone: z.string().trim().min(1).max(80).default('UTC'),
+      timezone: timezoneSchema.default(DEFAULT_TIMEZONE),
       status: z.nativeEnum(ActivityStatus).default(ActivityStatus.PLANNED),
       cost: z.number().nonnegative().optional(),
       currency: z.string().trim().length(3).transform((value) => value.toUpperCase()).optional(),
@@ -45,7 +48,7 @@ export const createActivitySchema = z.object({
     })
     .refine(
       (value) => !value.startTime || !value.endTime || value.startTime <= value.endTime,
-      'startTime must be before or equal to endTime'
+      { message: 'validation.timeRange.startBeforeEnd' }
     )
 });
 
@@ -60,7 +63,7 @@ export const updateActivitySchema = z.object({
       description: z.string().trim().max(5000).nullable().optional(),
       startTime: dateTimeSchema.nullable().optional(),
       endTime: dateTimeSchema.nullable().optional(),
-      timezone: z.string().trim().min(1).max(80).optional(),
+      timezone: timezoneSchema.optional(),
       status: z.nativeEnum(ActivityStatus).optional(),
       cost: z.number().nonnegative().nullable().optional(),
       currency: z.string().trim().length(3).transform((value) => value.toUpperCase()).nullable().optional(),
@@ -70,7 +73,7 @@ export const updateActivitySchema = z.object({
     })
     .refine(
       (value) => !value.startTime || !value.endTime || value.startTime <= value.endTime,
-      'startTime must be before or equal to endTime'
+      { message: 'validation.timeRange.startBeforeEnd' }
     )
 });
 

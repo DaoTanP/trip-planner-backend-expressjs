@@ -51,7 +51,7 @@ export class TripsService {
     const trip = await this.repository.findById(tripId);
 
     if (!trip) {
-      throw new NotFoundError('Trip');
+      throw new NotFoundError({ resourceKey: 'resources.trip' });
     }
 
     return trip;
@@ -79,10 +79,10 @@ export class TripsService {
   async deleteTrip(userId: string, tripId: string): Promise<void> {
     const access = await this.repository.findAccess(tripId, userId);
     if (!access) {
-      throw new NotFoundError('Trip');
+      throw new NotFoundError({ resourceKey: 'resources.trip' });
     }
     if (access.ownerId !== userId) {
-      throw new AuthorizationError('Only the trip owner can delete a trip');
+      throw new AuthorizationError({ messageKey: 'errors.authorization.tripOwnerDelete' });
     }
 
     await this.repository.delete(tripId);
@@ -91,14 +91,14 @@ export class TripsService {
   async ensureCanAccessTrip(userId: string, tripId: string): Promise<void> {
     const access = await this.repository.findAccess(tripId, userId);
     if (!access) {
-      throw new NotFoundError('Trip');
+      throw new NotFoundError({ resourceKey: 'resources.trip' });
     }
   }
 
   async ensureCanEditTrip(userId: string, tripId: string): Promise<void> {
     const access = await this.repository.findAccess(tripId, userId);
     if (!access) {
-      throw new NotFoundError('Trip');
+      throw new NotFoundError({ resourceKey: 'resources.trip' });
     }
 
     const role: TripRole = access.ownerId === userId ? 'OWNER' : (access.collaborators[0]?.role ?? 'VIEWER');

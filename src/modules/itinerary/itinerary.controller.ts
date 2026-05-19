@@ -18,7 +18,7 @@ import type {
 
 const requireUserId = (req: Request): string => {
   if (!req.user) {
-    throw new AuthError('Missing authenticated user');
+    throw new AuthError({ messageKey: 'errors.auth.missingUser' });
   }
 
   return req.user.id;

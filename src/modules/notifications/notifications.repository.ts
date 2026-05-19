@@ -1,8 +1,14 @@
-import type { Notification, NotificationStatus } from '@prisma/client';
+import type { Notification, NotificationStatus, Prisma } from '@prisma/client';
 
 import { prisma } from '@/prisma/client.js';
 
 export class NotificationsRepository {
+  create(data: Prisma.NotificationUncheckedCreateInput): Promise<Notification> {
+    return prisma.notification.create({
+      data
+    });
+  }
+
   list(userId: string, filters: { status?: NotificationStatus; limit: number }): Promise<Notification[]> {
     return prisma.notification.findMany({
       where: {

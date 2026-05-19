@@ -13,6 +13,7 @@ AI agents must:
 - Put Prisma access in repositories.
 - Validate request input with Zod.
 - Throw typed application errors.
+- Use localization keys for user-facing backend messages.
 - Use shared response helpers.
 - Preserve existing naming and folder patterns.
 - Update docs when architectural, domain, or convention decisions change.
@@ -37,6 +38,7 @@ AI agents must never:
 - Duplicate validation logic across modules.
 - Revert unrelated user changes.
 - Introduce dependencies without justification.
+- Hardcode user-facing validation, notification, email, or operational error text in business logic.
 
 ## 3. Architectural Consistency Rules
 
@@ -270,6 +272,7 @@ Before considering AI-generated code complete, verify:
 - Repositories are the only normal Prisma access layer.
 - Inputs are validated with Zod.
 - Errors use typed error classes.
+- User-facing messages use localization keys or module-owned templates.
 - Responses use response helpers.
 - Logs use Pino and contain no secrets.
 - Env vars are parsed through `env`.

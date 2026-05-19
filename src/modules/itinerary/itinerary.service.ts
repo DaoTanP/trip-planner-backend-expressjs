@@ -43,7 +43,7 @@ export class ItineraryService {
   async createActivity(userId: string, dayId: string, input: CreateActivityInput) {
     const day = await this.repository.findDayTripId(dayId);
     if (!day) {
-      throw new NotFoundError('Itinerary day');
+      throw new NotFoundError({ resourceKey: 'resources.itineraryDay' });
     }
 
     await this.trips.ensureCanEditTrip(userId, day.tripId);
@@ -71,7 +71,7 @@ export class ItineraryService {
   async updateActivity(userId: string, activityId: string, input: UpdateActivityInput) {
     const access = await this.repository.findActivityTripId(activityId);
     if (!access) {
-      throw new NotFoundError('Activity');
+      throw new NotFoundError({ resourceKey: 'resources.activity' });
     }
 
     await this.trips.ensureCanEditTrip(userId, access.tripId);
@@ -98,7 +98,7 @@ export class ItineraryService {
   async deleteActivity(userId: string, activityId: string): Promise<void> {
     const access = await this.repository.findActivityTripId(activityId);
     if (!access) {
-      throw new NotFoundError('Activity');
+      throw new NotFoundError({ resourceKey: 'resources.activity' });
     }
 
     await this.trips.ensureCanEditTrip(userId, access.tripId);

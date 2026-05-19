@@ -6,6 +6,8 @@ export type PublicUser = {
   name: string;
   role: UserRole;
   avatarUrl: string | null;
+  locale: string;
+  timezone: string;
   emailVerifiedAt: Date | null;
   createdAt: Date;
 };
@@ -33,6 +35,8 @@ export const toPublicUser = (user: User): PublicUser => ({
   name: user.name,
   role: user.role,
   avatarUrl: user.avatarUrl,
+  locale: user.locale,
+  timezone: user.timezone,
   emailVerifiedAt: user.emailVerifiedAt,
   createdAt: user.createdAt
 });

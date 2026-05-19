@@ -2,6 +2,8 @@ import type { RequestHandler } from 'express';
 import { ZodError, type ZodTypeAny } from 'zod';
 
 import { ValidationError } from '@/common/errors/validation-error.js';
+import { DEFAULT_LOCALE } from '@/common/localization/locales.js';
+import { formatZodIssues } from '@/common/localization/validation.js';
 
 type RequestParts = {
   body?: unknown;
@@ -33,14 +35,10 @@ export const validateRequest =
     } catch (error) {
       if (error instanceof ZodError) {
         next(
-          new ValidationError(
-            'Request validation failed',
-            error.issues.map((issue) => ({
-              path: issue.path.join('.'),
-              message: issue.message,
-              code: issue.code
-            }))
-          )
+          new ValidationError({
+            messageKey: 'errors.validation.request',
+            details: formatZodIssues(error.issues, req.locale ?? DEFAULT_LOCALE)
+          })
         );
         return;
       }

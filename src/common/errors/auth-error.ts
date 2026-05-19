@@ -1,10 +1,14 @@
 import { HTTP_STATUS } from '@/common/constants/http-status.js';
-import { AppError } from '@/common/errors/app-error.js';
+import {
+  AppError,
+  type AppErrorMessageInput,
+  resolveErrorMessageInput
+} from '@/common/errors/app-error.js';
 
 export class AuthError extends AppError {
-  constructor(message = 'Authentication failed') {
+  constructor(input?: AppErrorMessageInput) {
     super({
-      message,
+      ...resolveErrorMessageInput(input, { messageKey: 'errors.auth.failed' }),
       statusCode: HTTP_STATUS.UNAUTHORIZED,
       code: 'AUTHENTICATION_FAILED'
     });

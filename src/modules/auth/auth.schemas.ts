@@ -1,18 +1,23 @@
 import { z } from 'zod';
 
+import { DEFAULT_LOCALE, DEFAULT_TIMEZONE } from '@/common/localization/locales.js';
+import { localeSchema, timezoneSchema } from '@/common/localization/schemas.js';
+
 const passwordSchema = z
   .string()
   .min(8)
   .max(128)
-  .regex(/[A-Z]/, 'Password must include at least one uppercase letter')
-  .regex(/[a-z]/, 'Password must include at least one lowercase letter')
-  .regex(/[0-9]/, 'Password must include at least one number');
+  .regex(/[A-Z]/, 'validation.password.uppercase')
+  .regex(/[a-z]/, 'validation.password.lowercase')
+  .regex(/[0-9]/, 'validation.password.number');
 
 export const registerSchema = z.object({
   body: z.object({
     email: z.string().email().transform((value) => value.toLowerCase()),
     password: passwordSchema,
-    name: z.string().trim().min(2).max(120)
+    name: z.string().trim().min(2).max(120),
+    locale: localeSchema.default(DEFAULT_LOCALE),
+    timezone: timezoneSchema.default(DEFAULT_TIMEZONE)
   })
 });
 

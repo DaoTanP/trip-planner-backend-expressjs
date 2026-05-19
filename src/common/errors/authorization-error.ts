@@ -1,10 +1,14 @@
 import { HTTP_STATUS } from '@/common/constants/http-status.js';
-import { AppError } from '@/common/errors/app-error.js';
+import {
+  AppError,
+  type AppErrorMessageInput,
+  resolveErrorMessageInput
+} from '@/common/errors/app-error.js';
 
 export class AuthorizationError extends AppError {
-  constructor(message = 'You do not have permission to perform this action') {
+  constructor(input?: AppErrorMessageInput) {
     super({
-      message,
+      ...resolveErrorMessageInput(input, { messageKey: 'errors.authorization.forbidden' }),
       statusCode: HTTP_STATUS.FORBIDDEN,
       code: 'FORBIDDEN'
     });

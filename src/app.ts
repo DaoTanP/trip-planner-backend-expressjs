@@ -6,6 +6,7 @@ import helmet from 'helmet';
 
 import { apiRateLimiter } from '@/common/middleware/rate-limit.middleware.js';
 import { errorHandler } from '@/common/middleware/error-handler.middleware.js';
+import { localeMiddleware } from '@/common/middleware/locale.middleware.js';
 import { notFoundHandler } from '@/common/middleware/not-found.middleware.js';
 import { requestIdMiddleware } from '@/common/middleware/request-id.middleware.js';
 import { httpLogger } from '@/common/logger/http-logger.js';
@@ -32,6 +33,7 @@ export const createApp = () => {
   app.set('trust proxy', 1);
 
   app.use(requestIdMiddleware);
+  app.use(localeMiddleware);
   app.use(httpLogger);
   app.use(helmet());
   app.use(cors(corsOptions));

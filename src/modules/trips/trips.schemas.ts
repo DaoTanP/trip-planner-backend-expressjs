@@ -1,7 +1,10 @@
 import { TripStatus, TripVisibility } from '@prisma/client';
 import { z } from 'zod';
 
-const dateOnlySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected date in YYYY-MM-DD format');
+import { DEFAULT_TIMEZONE } from '@/common/localization/locales.js';
+import { dateOnlyStringSchema, timezoneSchema } from '@/common/localization/schemas.js';
+
+const dateOnlySchema = dateOnlyStringSchema;
 const uuidParam = z.string().uuid();
 
 export const listTripsSchema = z.object({
@@ -25,14 +28,14 @@ export const createTripSchema = z.object({
       description: z.string().trim().max(5000).optional(),
       startDate: dateOnlySchema.optional(),
       endDate: dateOnlySchema.optional(),
-      timezone: z.string().trim().min(1).max(80).default('UTC'),
+      timezone: timezoneSchema.default(DEFAULT_TIMEZONE),
       visibility: z.nativeEnum(TripVisibility).default(TripVisibility.PRIVATE),
       preferences: z.record(z.unknown()).optional(),
       budget: z.record(z.unknown()).optional()
     })
     .refine(
       (value) => !value.startDate || !value.endDate || value.startDate <= value.endDate,
-      'startDate must be before or equal to endDate'
+      { message: 'validation.dateRange.startBeforeEnd' }
     )
 });
 
@@ -46,7 +49,7 @@ export const updateTripSchema = z.object({
       description: z.string().trim().max(5000).nullable().optional(),
       startDate: dateOnlySchema.nullable().optional(),
       endDate: dateOnlySchema.nullable().optional(),
-      timezone: z.string().trim().min(1).max(80).optional(),
+      timezone: timezoneSchema.optional(),
       visibility: z.nativeEnum(TripVisibility).optional(),
       status: z.nativeEnum(TripStatus).optional(),
       coverImageUrl: z.string().url().nullable().optional(),
@@ -56,7 +59,7 @@ export const updateTripSchema = z.object({
     })
     .refine(
       (value) => !value.startDate || !value.endDate || value.startDate <= value.endDate,
-      'startDate must be before or equal to endDate'
+      { message: 'validation.dateRange.startBeforeEnd' }
     )
 });
 

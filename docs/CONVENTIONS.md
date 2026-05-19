@@ -61,6 +61,7 @@ Allowed shared folders:
 ```text
 src/common/errors
 src/common/logger
+src/common/localization
 src/common/middleware
 src/common/storage
 src/common/types
@@ -287,7 +288,32 @@ Forbidden:
 return res.status(404).json({ message: 'missing' });
 ```
 
-## 11. Logging Conventions
+## 11. Localization Conventions
+
+Use localization keys for user-facing text that can leave the backend through API errors, validation details, notifications, or email templates.
+
+Rules:
+
+- Services throw typed errors with `messageKey` and parameters instead of hardcoded prose.
+- Zod custom messages should be catalog keys such as `validation.dateOnly`.
+- Shared scalar validators for locale, timezone, and date-only strings live in `src/common/localization/schemas.ts`.
+- Request locale comes from `localeMiddleware`; do not parse `Accept-Language` inside controllers or services.
+- Module-specific notification and email templates belong to the module that owns the event.
+- Persist user locale and timezone on `User`; use `UsersService` to read another user's preferences.
+
+Forbidden:
+
+```ts
+throw new ConflictError('Email is already registered');
+```
+
+Allowed:
+
+```ts
+throw new ConflictError({ messageKey: 'errors.conflict.emailRegistered' });
+```
+
+## 12. Logging Conventions
 
 Use the shared Pino logger.
 
@@ -312,7 +338,7 @@ Never log:
 - authorization headers
 - full secret-bearing provider payloads
 
-## 12. Async/Await Conventions
+## 13. Async/Await Conventions
 
 Use `asyncHandler` for async Express handlers.
 
@@ -326,7 +352,7 @@ Rules:
 - If intentionally fire-and-forget, use `void` and log errors inside the called function.
 - Do not mix `.then()` chains with `async/await` without a specific reason.
 
-## 13. TypeScript Conventions
+## 14. TypeScript Conventions
 
 Strict TypeScript is required.
 
@@ -353,7 +379,7 @@ function handle(input: unknown) {
 }
 ```
 
-## 14. Import Conventions
+## 15. Import Conventions
 
 Use path aliases for project imports:
 
@@ -370,7 +396,7 @@ Import order:
 
 Use `.js` extensions for TypeScript source imports because the project uses NodeNext ESM.
 
-## 15. Testing Conventions
+## 16. Testing Conventions
 
 Prefer integration tests for user-facing behavior.
 
@@ -394,7 +420,7 @@ Test files:
 tests/integration/<feature>.test.ts
 ```
 
-## 16. Redis Conventions
+## 17. Redis Conventions
 
 Use `src/config/redis.ts`.
 
@@ -419,7 +445,7 @@ trip:<tripId>:summary
 
 Set a TTL for cached data unless it is intentionally persistent.
 
-## 17. BullMQ Conventions
+## 18. BullMQ Conventions
 
 Queue names live in `src/jobs/queue-names.ts`.
 
@@ -439,7 +465,7 @@ Workers must:
 - use retry settings from shared queue config
 - not depend on Express request state
 
-## 18. Docker Conventions
+## 19. Docker Conventions
 
 Docker must support:
 
@@ -453,7 +479,7 @@ Do not add required host services when Docker can provide them.
 
 Do not put production secrets in Dockerfiles or compose files.
 
-## 19. Environment Variable Conventions
+## 20. Environment Variable Conventions
 
 Every environment variable must be defined in:
 
@@ -481,7 +507,7 @@ import { env } from '@/config/env.js';
 const secret = env.JWT_ACCESS_SECRET;
 ```
 
-## 20. Code Style Anti-Patterns To Avoid
+## 21. Code Style Anti-Patterns To Avoid
 
 - Giant controllers.
 - Giant services.

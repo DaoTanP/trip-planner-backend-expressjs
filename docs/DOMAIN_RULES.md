@@ -173,6 +173,7 @@ Activity belongs to a day from another trip context
 - Store timestamps in UTC.
 - Preserve user-facing timezone on trips and activities.
 - Date-only values represent local calendar dates, not instants.
+- User timezone preferences must be valid IANA timezones and default to UTC.
 
 Valid:
 
@@ -190,7 +191,31 @@ Activity: ends before it starts
 Day: duplicate date for same trip
 ```
 
-## 9. Notification Rules
+## 9. Localization Rules
+
+- Users have a preferred locale and timezone.
+- User locale defaults to `en`; user timezone defaults to `UTC`.
+- Unsupported request locales fall back to the default locale rather than failing unrelated workflows.
+- Validation messages, notification templates, email templates, and operational error messages must be generated from localization keys.
+- Business services should pass message keys and parameters, not final user-facing prose.
+- Notification records store the rendered text plus template metadata for auditability and future re-rendering decisions.
+
+Valid:
+
+```text
+User locale = es
+Notification template = TRIP_INVITE
+Rendered notification title = Invitacion de viaje
+```
+
+Invalid:
+
+```text
+Service embeds "Email is already registered" directly in business logic
+Notification job chooses a hardcoded email subject without recipient locale
+```
+
+## 10. Notification Rules
 
 - Notifications belong to one user.
 - Notifications may reference a trip.
@@ -198,6 +223,7 @@ Day: duplicate date for same trip
 - Notifications should be idempotent when generated from retryable jobs.
 - Read state belongs to the notification recipient.
 - Notification payloads must not contain secrets or sensitive token data.
+- Notification content must come from localized templates.
 
 Valid:
 
@@ -213,7 +239,7 @@ One notification row shared by multiple recipients
 Notification data contains raw invite token
 ```
 
-## 10. AI Itinerary Generation Rules
+## 11. AI Itinerary Generation Rules
 
 AI-generated plans must never bypass core domain rules.
 
@@ -243,12 +269,13 @@ AI creates activity outside trip dates
 AI changes a trip owned by another user without permission
 ```
 
-## 11. Validation Invariants
+## 12. Validation Invariants
 
 Always enforce:
 
 - Email addresses are case-insensitive.
 - User names must be present.
+- User locales and timezones must be valid supported values.
 - Trip titles must be present.
 - Required foreign keys must point to existing records.
 - Enum values must be valid.
@@ -257,7 +284,7 @@ Always enforce:
 
 Business validation belongs in services when it depends on database state.
 
-## 12. Data Consistency Rules
+## 13. Data Consistency Rules
 
 - A trip must not contain itinerary days from another trip.
 - Activities must not be moved across trips without explicit handling.
@@ -273,7 +300,7 @@ Comment tripId = Trip A and activityId = Activity from Trip B
 Activity dayId points to Day from a trip the user cannot edit
 ```
 
-## 13. Deletion Rules
+## 14. Deletion Rules
 
 - Trip deletion is owner-only.
 - Deleting a trip deletes its itinerary days, activities, comments, collaborators, and trip notifications as defined by persistence rules.
@@ -283,7 +310,7 @@ Activity dayId points to Day from a trip the user cannot edit
 
 Destructive actions must be explicit and permission checked.
 
-## 14. Soft Delete Policies
+## 15. Soft Delete Policies
 
 Current policy:
 
@@ -293,7 +320,7 @@ Current policy:
 
 Future soft delete fields may be added when recovery, audit, or compliance requires them. Do not add soft delete to every table by default.
 
-## 15. Auditability Considerations
+## 16. Auditability Considerations
 
 Important future audit events:
 
@@ -306,7 +333,7 @@ Important future audit events:
 
 Audit logging should be added when product or security needs justify it. Do not mix audit history into normal comments or notifications.
 
-## 16. Future Extensibility Considerations
+## 17. Future Extensibility Considerations
 
 The domain should evolve toward:
 

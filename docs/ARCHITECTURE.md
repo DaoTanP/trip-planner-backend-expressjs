@@ -77,7 +77,7 @@ tests/
   setup.ts
 ```
 
-`src/common` must stay small. It is for middleware, errors, logging, shared response helpers, storage interfaces, and common types. Business-specific helpers belong inside their module.
+`src/common` must stay small. It is for middleware, errors, logging, localization primitives, shared response helpers, storage interfaces, and common types. Business-specific helpers belong inside their module.
 
 ## 5. Module Boundaries
 
@@ -107,6 +107,7 @@ Why: dependency direction prevents cycles and keeps each layer easy to reason ab
 ```text
 HTTP request
   -> requestIdMiddleware
+  -> localeMiddleware
   -> httpLogger
   -> helmet/cors/compression/body parsing
   -> rate limiter
@@ -253,7 +254,31 @@ tripsRouter.post(
 
 Zod handles input shape. Services handle domain rules that require database state, permissions, or multi-entity checks.
 
-## 14. Logging Strategy
+## 14. Localization Architecture
+
+Localization is a shared boundary in `src/common/localization`.
+
+```text
+HTTP request
+  -> localeMiddleware
+  -> validateRequest / controller / service
+  -> errorHandler or response helper
+```
+
+The middleware resolves `req.locale` from `x-locale` or `Accept-Language`, and `req.timezone` from `x-timezone`. Unsupported values fall back to `en` and `UTC`.
+
+Rules:
+
+- Localized message keys live in the shared message catalog.
+- Zod validation responses are localized in `validateRequest`, not inside individual controllers.
+- Operational errors store message keys and parameters; the error handler translates them for the request locale.
+- Domain modules own their user-facing templates. For example, notification and notification-email templates live in the notifications module and use shared translation helpers.
+- User locale and timezone preferences are persisted on `User` and read through `UsersService` when another module needs recipient preferences.
+- Date-only values remain local calendar dates. Instants are stored in UTC, with timezone fields preserved for user-facing formatting.
+
+Why: this keeps business logic from hardcoding response text while avoiding a global template service that would own module-specific language.
+
+## 15. Logging Strategy
 
 Pino is the structured logger. Logs must be JSON in production and readable in development.
 
@@ -272,7 +297,7 @@ Do not log:
 - authorization headers
 - full third-party payloads with secrets
 
-## 15. Authentication Architecture
+## 16. Authentication Architecture
 
 Authentication uses:
 
@@ -291,7 +316,7 @@ logout -> revoke refresh token
 
 The schema is ready for OAuth accounts, email verification, and multi-device sessions without changing unrelated modules.
 
-## 16. Queue Architecture
+## 17. Queue Architecture
 
 Queue names live in `src/jobs/queue-names.ts`. Queue instances and enqueue helpers live in `src/jobs/*.queue.ts`. Workers live in `src/workers`.
 
@@ -304,7 +329,7 @@ export const notificationQueue = new Queue<NotificationJobData>(
 
 Why: keeping queue contracts in one place prevents workers and services from drifting apart.
 
-## 17. Scalability Strategy
+## 18. Scalability Strategy
 
 Scale in this order:
 
@@ -317,7 +342,7 @@ Scale in this order:
 
 Do not split into microservices until the monolith has clear independent scaling pain and stable ownership boundaries.
 
-## 18. Future Extensibility Considerations
+## 19. Future Extensibility Considerations
 
 The current structure should support:
 
@@ -331,7 +356,7 @@ The current structure should support:
 
 Future integrations should enter through module services or provider interfaces, not through controllers.
 
-## 19. Dependency Rules
+## 20. Dependency Rules
 
 Use these dependency rules:
 
@@ -346,7 +371,7 @@ src/prisma -> Prisma client lifecycle
 
 When one module needs another module's rule, call the other module's service. Do not import its repository.
 
-## 20. Anti-Patterns To Avoid
+## 21. Anti-Patterns To Avoid
 
 - Prisma calls in controllers.
 - Business logic in route files.
