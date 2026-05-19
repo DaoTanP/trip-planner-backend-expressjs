@@ -1,27 +1,31 @@
-import pinoHttp from 'pino-http';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import type { RequestHandler } from 'express';
+import { pinoHttp } from 'pino-http';
 
 import { logger } from '@/common/logger/logger.js';
 import { env } from '@/config/env.js';
 
-export const httpLogger = pinoHttp({
+type LoggedRequest = IncomingMessage & { id?: string };
+
+export const httpLogger = pinoHttp<LoggedRequest, ServerResponse>({
   logger,
   autoLogging: !env.isTest,
   customProps: (req) => ({
-    requestId: (req as { id?: string }).id
+    requestId: req.id
   }),
   serializers: {
-    req(req) {
+    req(req: LoggedRequest) {
       return {
-        id: (req as { id?: string }).id,
+        id: req.id,
         method: req.method,
         url: req.url,
-        remoteAddress: req.remoteAddress
+        remoteAddress: req.socket.remoteAddress
       };
     },
-    res(res) {
+    res(res: ServerResponse) {
       return {
         statusCode: res.statusCode
       };
     }
   }
-});
+}) as unknown as RequestHandler;

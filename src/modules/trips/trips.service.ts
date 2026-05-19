@@ -16,7 +16,16 @@ export class TripsService {
   constructor(private readonly repository: TripsRepository = tripsRepository) {}
 
   async listTrips(userId: string, query: ListTripsQuery) {
-    const result = await this.repository.findForUser(userId, query);
+    const filters: { status?: ListTripsQuery['status']; page: number; limit: number } = {
+      page: query.page,
+      limit: query.limit
+    };
+
+    if (query.status !== undefined) {
+      filters.status = query.status;
+    }
+
+    const result = await this.repository.findForUser(userId, filters);
 
     return {
       items: result.items,

@@ -20,6 +20,6 @@
     },
     "types": ["node", "vitest/globals"]
   },
-  "include": ["src", "tests", "prisma/seed.ts", "eslint.config.js", "vitest.config.ts"],
+  "include": ["src", "tests", "prisma/seed.ts", "prisma.config.ts", "eslint.config.js", "vitest.config.ts"],
   "exclude": ["node_modules", "dist"]
 }

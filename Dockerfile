@@ -1,21 +1,28 @@
-FROM node:22-alpine AS deps
+FROM node:24.15.0-alpine3.23 AS base
 WORKDIR /app
-COPY package*.json ./
-RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+RUN apk add --no-cache ca-certificates openssl
+
+FROM base AS deps
+ENV NODE_ENV=development
+COPY package.json package-lock.json ./
+RUN npm ci
 
 FROM deps AS build
-WORKDIR /app
 COPY . .
 RUN npm run prisma:generate
 RUN npm run build
 
-FROM node:22-alpine AS runtime
-WORKDIR /app
+FROM base AS prod-deps
 ENV NODE_ENV=production
-COPY package*.json ./
-RUN if [ -f package-lock.json ]; then npm ci --omit=dev; else npm install --omit=dev; fi && npm cache clean --force
-COPY --from=build /app/dist ./dist
-COPY --from=build /app/prisma ./prisma
-COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev && npm cache clean --force
+
+FROM base AS runtime
+ENV NODE_ENV=production
+COPY --from=prod-deps --chown=node:node /app/node_modules ./node_modules
+COPY --from=build --chown=node:node /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=build --chown=node:node /app/dist ./dist
+COPY --from=build --chown=node:node /app/prisma ./prisma
+USER node
 EXPOSE 3000
 CMD ["node", "dist/server.js"]

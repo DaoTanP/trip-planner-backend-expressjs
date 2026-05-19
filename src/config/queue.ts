@@ -1,9 +1,9 @@
-import IORedis from 'ioredis';
+import { Redis } from 'ioredis';
 import type { JobsOptions, QueueOptions } from 'bullmq';
 
 import { env } from '@/config/env.js';
 
-export const queueConnection = new IORedis(env.REDIS_URL, {
+export const queueConnection = new Redis(env.REDIS_URL, {
   maxRetriesPerRequest: null,
   enableReadyCheck: false
 });

@@ -22,8 +22,12 @@ export const signAccessToken = (input: {
   userId: string;
   email: string;
   role: UserRole;
-}): string =>
-  jwt.sign(
+}): string => {
+  const options = {
+    expiresIn: env.JWT_ACCESS_EXPIRES_IN as NonNullable<SignOptions['expiresIn']>
+  } satisfies SignOptions;
+
+  return jwt.sign(
     {
       sub: input.userId,
       email: input.email,
@@ -31,17 +35,20 @@ export const signAccessToken = (input: {
       type: 'access'
     },
     env.JWT_ACCESS_SECRET,
-    {
-      expiresIn: env.JWT_ACCESS_EXPIRES_IN as SignOptions['expiresIn']
-    }
+    options
   );
+};
 
 export const signRefreshToken = (input: {
   userId: string;
   tokenId: string;
   familyId: string;
-}): string =>
-  jwt.sign(
+}): string => {
+  const options = {
+    expiresIn: `${env.JWT_REFRESH_EXPIRES_IN_DAYS}d` as NonNullable<SignOptions['expiresIn']>
+  } satisfies SignOptions;
+
+  return jwt.sign(
     {
       sub: input.userId,
       tokenId: input.tokenId,
@@ -49,10 +56,9 @@ export const signRefreshToken = (input: {
       type: 'refresh'
     },
     env.JWT_REFRESH_SECRET,
-    {
-      expiresIn: `${env.JWT_REFRESH_EXPIRES_IN_DAYS}d` as SignOptions['expiresIn']
-    }
+    options
   );
+};
 
 export const verifyAccessToken = (token: string): AccessTokenPayload => {
   try {

@@ -469,11 +469,14 @@ Workers must:
 
 Docker must support:
 
+- Node.js 24.15.0 LTS using official Node Alpine images
 - local hot reload
 - Postgres with PostGIS
 - Redis
-- MailHog
+- Mailpit
 - API and worker containers
+
+Use committed lockfiles and `npm ci` in Docker builds. Do not install dependencies on every container startup; rebuild the dev image after dependency changes.
 
 Do not add required host services when Docker can provide them.
 

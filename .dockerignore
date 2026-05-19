@@ -1,8 +1,12 @@
 node_modules
 dist
 coverage
+.cache
+.npm
 .git
+.gitignore
 .env
 .env.*
 npm-debug.log*
+*.log
 README.md

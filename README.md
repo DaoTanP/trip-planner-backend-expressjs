@@ -55,9 +55,11 @@ Development: Vitest, Supertest, ESLint flat config, Prettier, TSX, tsc-alias, Pr
 
 ## Initial Setup
 
+Use Node.js 24.15.0 LTS and npm 11.14.1 for local tooling. Docker development uses the same pinned Node patch through the official Node Alpine image.
+
 ```bash
 cp .env.example .env
-npm install
+npm ci
 npm run prisma:generate
 npm run prisma:migrate
 npm run prisma:seed
@@ -72,7 +74,7 @@ docker compose up --build
 
 API base URL: `http://localhost:3000/api/v1`
 
-MailHog UI: `http://localhost:8025`
+Mailpit UI: `http://localhost:8025`
 
 ## Docker Services
 
@@ -82,7 +84,7 @@ MailHog UI: `http://localhost:8025`
 - `worker`: BullMQ worker with hot reload
 - `postgres`: PostGIS-enabled PostgreSQL
 - `redis`: cache, queue, rate-limit, and future realtime/session backing store
-- `mailhog`: local email capture
+- `mailpit`: local email capture
 
 ## Prisma Setup
 

@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import type { ParamsDictionary } from 'express-serve-static-core';
 
 import { sendCreated, sendNoContent, sendSuccess } from '@/common/utils/response.js';
 import { authService, type AuthService } from '@/modules/auth/auth.service.js';
@@ -10,7 +11,9 @@ import type {
   RegisterInput
 } from '@/modules/auth/auth.schemas.js';
 
-const getAuthContext = (req: Request): AuthRequestContext => {
+type AuthContextRequest = Pick<Request, 'body' | 'header' | 'ip'>;
+
+const getAuthContext = (req: AuthContextRequest): AuthRequestContext => {
   const context: AuthRequestContext = {};
   const userAgent = req.header('user-agent');
 
@@ -30,22 +33,22 @@ const getAuthContext = (req: Request): AuthRequestContext => {
 export class AuthController {
   constructor(private readonly service: AuthService = authService) {}
 
-  register = async (req: Request<unknown, unknown, RegisterInput>, res: Response) => {
+  register = async (req: Request<ParamsDictionary, unknown, RegisterInput>, res: Response) => {
     const result = await this.service.register(req.body, getAuthContext(req));
     return sendCreated(res, result);
   };
 
-  login = async (req: Request<unknown, unknown, LoginInput>, res: Response) => {
+  login = async (req: Request<ParamsDictionary, unknown, LoginInput>, res: Response) => {
     const result = await this.service.login(req.body, getAuthContext(req));
     return sendSuccess(res, result);
   };
 
-  refresh = async (req: Request<unknown, unknown, RefreshTokenInput>, res: Response) => {
+  refresh = async (req: Request<ParamsDictionary, unknown, RefreshTokenInput>, res: Response) => {
     const tokens = await this.service.refresh(req.body, getAuthContext(req));
     return sendSuccess(res, { tokens });
   };
 
-  logout = async (req: Request<unknown, unknown, LogoutInput>, res: Response) => {
+  logout = async (req: Request<ParamsDictionary, unknown, LogoutInput>, res: Response) => {
     await this.service.logout(req.body);
     return sendNoContent(res);
   };

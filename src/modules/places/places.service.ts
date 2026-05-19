@@ -10,6 +10,12 @@ export class PlacesService {
 
   async listPlaces(query: ListPlacesQuery) {
     const cacheKey = `places:list:${JSON.stringify(query)}`;
+    const filters: { q?: string; countryCode?: string; limit: number } = {
+      limit: query.limit
+    };
+
+    if (query.q !== undefined) filters.q = query.q;
+    if (query.countryCode !== undefined) filters.countryCode = query.countryCode;
 
     try {
       const cached = await cache.get<Awaited<ReturnType<PlacesRepository['list']>>>(cacheKey);
@@ -20,7 +26,7 @@ export class PlacesService {
       logger.debug({ err: error }, 'Place cache read skipped');
     }
 
-    const places = await this.repository.list(query);
+    const places = await this.repository.list(filters);
 
     try {
       await cache.set(cacheKey, places, 60);

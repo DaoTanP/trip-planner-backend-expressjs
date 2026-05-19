@@ -27,7 +27,15 @@ export class NotificationsService {
   ) {}
 
   list(userId: string, query: ListNotificationsQuery) {
-    return this.repository.list(userId, query);
+    const filters: { status?: ListNotificationsQuery['status']; limit: number } = {
+      limit: query.limit
+    };
+
+    if (query.status !== undefined) {
+      filters.status = query.status;
+    }
+
+    return this.repository.list(userId, filters);
   }
 
   async createFromTemplate(input: CreateNotificationFromTemplateInput) {

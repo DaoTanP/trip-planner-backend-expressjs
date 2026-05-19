@@ -12,7 +12,7 @@ export const sendSuccess = <T>(
   res: Response,
   data: T,
   meta?: Record<string, unknown>,
-  statusCode = HTTP_STATUS.OK
+  statusCode: number = HTTP_STATUS.OK
 ) => res.status(statusCode).json({ success: true, data, ...(meta ? { meta } : {}) } satisfies ApiSuccess<T>);
 
 export const sendCreated = <T>(res: Response, data: T) => sendSuccess(res, data, undefined, HTTP_STATUS.CREATED);

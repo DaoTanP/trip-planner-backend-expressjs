@@ -16,7 +16,7 @@ import type {
   UpdateActivityInput
 } from '@/modules/itinerary/itinerary.schemas.js';
 
-const requireUserId = (req: Request): string => {
+const requireUserId = (req: { user?: Request['user'] }): string => {
   if (!req.user) {
     throw new AuthError({ messageKey: 'errors.auth.missingUser' });
   }

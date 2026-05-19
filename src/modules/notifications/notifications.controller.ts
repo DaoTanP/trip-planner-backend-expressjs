@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import type { ParamsDictionary } from 'express-serve-static-core';
 
 import { AuthError } from '@/common/errors/auth-error.js';
 import { sendSuccess } from '@/common/utils/response.js';
@@ -11,7 +12,7 @@ import {
   type NotificationsService
 } from '@/modules/notifications/notifications.service.js';
 
-const requireUserId = (req: Request): string => {
+const requireUserId = (req: { user?: Request['user'] }): string => {
   if (!req.user) {
     throw new AuthError({ messageKey: 'errors.auth.missingUser' });
   }
@@ -22,7 +23,7 @@ const requireUserId = (req: Request): string => {
 export class NotificationsController {
   constructor(private readonly service: NotificationsService = notificationsService) {}
 
-  list = async (req: Request<unknown, unknown, unknown, ListNotificationsQuery>, res: Response) => {
+  list = async (req: Request<ParamsDictionary, unknown, unknown, ListNotificationsQuery>, res: Response) => {
     const notifications = await this.service.list(requireUserId(req), req.query);
     return sendSuccess(res, { notifications });
   };

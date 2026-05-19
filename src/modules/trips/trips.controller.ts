@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import type { ParamsDictionary } from 'express-serve-static-core';
 
 import { AuthError } from '@/common/errors/auth-error.js';
 import { sendCreated, sendNoContent, sendSuccess } from '@/common/utils/response.js';
@@ -10,7 +11,7 @@ import type {
 } from '@/modules/trips/trips.schemas.js';
 import { tripsService, type TripsService } from '@/modules/trips/trips.service.js';
 
-const requireUserId = (req: Request): string => {
+const requireUserId = (req: { user?: Request['user'] }): string => {
   if (!req.user) {
     throw new AuthError({ messageKey: 'errors.auth.missingUser' });
   }
@@ -21,12 +22,12 @@ const requireUserId = (req: Request): string => {
 export class TripsController {
   constructor(private readonly service: TripsService = tripsService) {}
 
-  list = async (req: Request<unknown, unknown, unknown, ListTripsQuery>, res: Response) => {
+  list = async (req: Request<ParamsDictionary, unknown, unknown, ListTripsQuery>, res: Response) => {
     const result = await this.service.listTrips(requireUserId(req), req.query);
     return sendSuccess(res, result.items, { pagination: result.pagination });
   };
 
-  create = async (req: Request<unknown, unknown, CreateTripInput>, res: Response) => {
+  create = async (req: Request<ParamsDictionary, unknown, CreateTripInput>, res: Response) => {
     const trip = await this.service.createTrip(requireUserId(req), req.body);
     return sendCreated(res, { trip });
   };
