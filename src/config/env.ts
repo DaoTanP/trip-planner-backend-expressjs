@@ -15,6 +15,12 @@ const booleanFromEnv = z.preprocess((value) => {
   return ['true', '1', 'yes', 'on'].includes(value.toLowerCase());
 }, z.boolean());
 
+const optionalString = z
+  .string()
+  .trim()
+  .transform((value) => (value.length > 0 ? value : undefined))
+  .optional();
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   APP_NAME: z.string().default('trip-planner-api'),
@@ -28,6 +34,16 @@ const envSchema = z.object({
   JWT_REFRESH_SECRET: z.string().min(32),
   JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
   JWT_REFRESH_EXPIRES_IN_DAYS: z.coerce.number().int().positive().default(30),
+
+  AUTH_TOKEN_TRANSPORT: z.enum(['cookie', 'body', 'both']).default('cookie'),
+  AUTH_ACCESS_COOKIE_NAME: z.string().default('tp_access_token'),
+  AUTH_REFRESH_COOKIE_NAME: z.string().default('tp_refresh_token'),
+  AUTH_CSRF_COOKIE_NAME: z.string().default('tp_csrf_token'),
+  AUTH_COOKIE_DOMAIN: optionalString,
+  AUTH_COOKIE_SAME_SITE: z.enum(['lax', 'strict', 'none']).default('lax'),
+  AUTH_COOKIE_SECURE: booleanFromEnv.optional(),
+
+  GOOGLE_OAUTH_CLIENT_ID: optionalString,
 
   CORS_ORIGINS: z.string().default('http://localhost:5173,http://localhost:3000').transform(stringToArray),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
@@ -58,6 +74,7 @@ if (!parsedEnv.success) {
 
 export const env = {
   ...parsedEnv.data,
+  AUTH_COOKIE_SECURE: parsedEnv.data.AUTH_COOKIE_SECURE ?? parsedEnv.data.NODE_ENV === 'production',
   isProduction: parsedEnv.data.NODE_ENV === 'production',
   isDevelopment: parsedEnv.data.NODE_ENV === 'development',
   isTest: parsedEnv.data.NODE_ENV === 'test'

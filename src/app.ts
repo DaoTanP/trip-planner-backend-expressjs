@@ -12,6 +12,7 @@ import { requestIdMiddleware } from '@/common/middleware/request-id.middleware.j
 import { httpLogger } from '@/common/logger/http-logger.js';
 import { sendSuccess } from '@/common/utils/response.js';
 import { env } from '@/config/env.js';
+import { csrfProtection } from '@/modules/auth/auth.csrf.middleware.js';
 import { apiRouter } from '@/routes.js';
 
 const corsOptions: CorsOptions = {
@@ -41,6 +42,7 @@ export const createApp = () => {
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: false }));
   app.use(cookieParser());
+  app.use(csrfProtection);
   app.use(apiRateLimiter);
 
   app.get('/health', (_req, res) =>

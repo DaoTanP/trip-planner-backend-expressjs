@@ -1,4 +1,4 @@
-import type { User, UserRole } from '@prisma/client';
+import type { AuthProvider, Prisma, User, UserRole } from '@prisma/client';
 
 export type PublicUser = {
   id: string;
@@ -23,11 +23,32 @@ export type AuthResult = {
   tokens: TokenPair;
 };
 
+export type AuthResponse = {
+  user: PublicUser;
+  tokens?: TokenPair;
+};
+
 export type AuthRequestContext = {
   userAgent?: string;
   ipAddress?: string;
   deviceId?: string;
 };
+
+export type VerifiedOAuthProfile = {
+  provider: Exclude<AuthProvider, 'EMAIL'>;
+  providerUserId: string;
+  email: string;
+  emailVerified: boolean;
+  name: string;
+  avatarUrl?: string | null;
+  locale?: string | null;
+  profile: Prisma.InputJsonValue;
+};
+
+export interface OAuthProviderVerifier {
+  provider: Exclude<AuthProvider, 'EMAIL'>;
+  verifyCredential(credential: string): Promise<VerifiedOAuthProfile>;
+}
 
 export const toPublicUser = (user: User): PublicUser => ({
   id: user.id,

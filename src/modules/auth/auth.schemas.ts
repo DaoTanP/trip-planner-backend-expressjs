@@ -30,15 +30,28 @@ export const loginSchema = z.object({
 });
 
 export const refreshTokenSchema = z.object({
-  body: z.object({
-    refreshToken: z.string().min(1),
-    deviceId: z.string().trim().max(128).optional()
-  })
+  body: z
+    .object({
+      refreshToken: z.string().min(1).optional(),
+      deviceId: z.string().trim().max(128).optional()
+    })
+    .default({})
 });
 
 export const logoutSchema = z.object({
+  body: z
+    .object({
+      refreshToken: z.string().min(1).optional()
+    })
+    .default({})
+});
+
+export const googleOAuthLoginSchema = z.object({
   body: z.object({
-    refreshToken: z.string().min(1)
+    credential: z.string().min(1),
+    deviceId: z.string().trim().max(128).optional(),
+    locale: localeSchema.optional(),
+    timezone: timezoneSchema.optional()
   })
 });
 
@@ -46,3 +59,4 @@ export type RegisterInput = z.infer<typeof registerSchema>['body'];
 export type LoginInput = z.infer<typeof loginSchema>['body'];
 export type RefreshTokenInput = z.infer<typeof refreshTokenSchema>['body'];
 export type LogoutInput = z.infer<typeof logoutSchema>['body'];
+export type GoogleOAuthLoginInput = z.infer<typeof googleOAuthLoginSchema>['body'];

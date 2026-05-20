@@ -338,6 +338,16 @@ Never log:
 - authorization headers
 - full secret-bearing provider payloads
 
+## 12a. Auth And OAuth Conventions
+
+- Provider verification belongs in `src/modules/auth/providers`.
+- Controllers must not verify OAuth credentials, create users, or link accounts directly.
+- Auth services own account linking, auto-registration, disabled-account checks, and token issuance.
+- Repositories own `User`, `OAuthAccount`, and `RefreshToken` persistence for auth workflows.
+- New OAuth providers must store provider identifiers in `OAuthAccount`, not provider-specific columns on `User`.
+- Browser sessions should use httpOnly cookies plus CSRF headers; do not add `localStorage`-based refresh-token flows for the web app.
+- OAuth provider profile payloads belong in `OAuthAccount.profile` and must not include provider access tokens unless a future feature explicitly requires encrypted storage.
+
 ## 13. Async/Await Conventions
 
 Use `asyncHandler` for async Express handlers.

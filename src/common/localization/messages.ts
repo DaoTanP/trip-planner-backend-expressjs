@@ -18,11 +18,17 @@ const enMessages = {
   'errors.auth.failed': 'Authentication failed',
   'errors.auth.invalidAccessToken': 'Invalid access token',
   'errors.auth.invalidCredentials': 'Invalid email or password',
+  'errors.auth.invalidCsrfToken': 'Invalid CSRF token',
   'errors.auth.invalidOrExpiredAccessToken': 'Invalid or expired access token',
   'errors.auth.invalidOrExpiredRefreshToken': 'Invalid or expired refresh token',
   'errors.auth.invalidRefreshToken': 'Invalid refresh token',
+  'errors.auth.invalidSession': 'Invalid session',
   'errors.auth.missingBearer': 'Missing bearer token',
+  'errors.auth.missingRefreshToken': 'Missing refresh token',
   'errors.auth.missingUser': 'Missing authenticated user',
+  'errors.auth.oauthEmailNotVerified': 'OAuth email is not verified',
+  'errors.auth.oauthInvalidCredential': 'OAuth credential is invalid',
+  'errors.auth.oauthProviderNotConfigured': 'OAuth provider is not configured',
   'errors.auth.refreshTokenExpired': 'Refresh token expired',
   'errors.auth.refreshTokenNotRecognized': 'Refresh token is not recognized',
   'errors.auth.refreshTokenReuseDetected': 'Refresh token reuse detected',
@@ -91,7 +97,7 @@ const enMessages = {
 export type MessageKey = keyof typeof enMessages;
 export type ResourceMessageKey = Extract<MessageKey, `resources.${string}`>;
 
-const esMessages: Record<MessageKey, string> = {
+const _legacyEsMessages: Partial<Record<MessageKey, string>> = {
   'emails.COMMENT_MENTION.html': '<p>{actorName} te menciono en {tripTitle}.</p><p>{commentPreview}</p>',
   'emails.COMMENT_MENTION.subject': '{actorName} te menciono',
   'emails.COMMENT_MENTION.text': '{actorName} te menciono en {tripTitle}. {commentPreview}',
@@ -179,9 +185,37 @@ const esMessages: Record<MessageKey, string> = {
   'validation.unrecognizedKeys': 'Campo(s) no reconocidos: {keys}'
 };
 
+const viMessages: Record<MessageKey, string> = {
+  ...enMessages,
+  'errors.auth.accountDisabled': 'Tài khoản đã bị vô hiệu hóa',
+  'errors.auth.failed': 'Xác thực thất bại',
+  'errors.auth.invalidAccessToken': 'Mã truy cập không hợp lệ',
+  'errors.auth.invalidCredentials': 'Email hoặc mật khẩu không hợp lệ',
+  'errors.auth.invalidCsrfToken': 'Mã CSRF không hợp lệ',
+  'errors.auth.invalidOrExpiredAccessToken': 'Mã truy cập không hợp lệ hoặc đã hết hạn',
+  'errors.auth.invalidOrExpiredRefreshToken': 'Mã làm mới không hợp lệ hoặc đã hết hạn',
+  'errors.auth.invalidRefreshToken': 'Mã làm mới không hợp lệ',
+  'errors.auth.invalidSession': 'Phiên đăng nhập không hợp lệ',
+  'errors.auth.missingBearer': 'Thiếu mã bearer',
+  'errors.auth.missingRefreshToken': 'Thiếu mã làm mới',
+  'errors.auth.missingUser': 'Thiếu người dùng đã xác thực',
+  'errors.auth.oauthEmailNotVerified': 'Email OAuth chưa được xác minh',
+  'errors.auth.oauthInvalidCredential': 'Thông tin xác thực OAuth không hợp lệ',
+  'errors.auth.oauthProviderNotConfigured': 'Nhà cung cấp OAuth chưa được cấu hình',
+  'errors.auth.refreshTokenExpired': 'Mã làm mới đã hết hạn',
+  'errors.auth.refreshTokenNotRecognized': 'Mã làm mới không được nhận diện',
+  'errors.auth.refreshTokenReuseDetected': 'Phát hiện sử dụng lại mã làm mới',
+  'errors.authorization.forbidden': 'Bạn không có quyền thực hiện hành động này',
+  'errors.conflict.emailRegistered': 'Email đã được đăng ký',
+  'errors.validation.request': 'Yêu cầu không hợp lệ',
+  'validation.invalidEmail': 'Email không hợp lệ',
+  'validation.locale.unsupported': 'Ngôn ngữ không được hỗ trợ',
+  'validation.timezone.invalid': 'Múi giờ IANA không hợp lệ'
+};
+
 export const LOCALIZED_MESSAGES: Record<Locale, Record<MessageKey, string>> = {
   en: enMessages,
-  es: esMessages
+  vi: viMessages
 };
 
 const messageKeys = new Set<string>(Object.keys(enMessages));

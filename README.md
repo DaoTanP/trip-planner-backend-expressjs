@@ -49,7 +49,7 @@ tests/
 
 ## Package Dependencies
 
-Runtime: Express, TypeScript, Prisma, PostgreSQL, Redis, BullMQ, Zod, Pino, JWT, bcrypt, Helmet, CORS, rate limiting, AWS SDK v3 for S3-compatible object storage.
+Runtime: Express, TypeScript, Prisma, PostgreSQL, Redis, BullMQ, Zod, Pino, JWT, bcrypt, Google Auth Library, Helmet, CORS, rate limiting, AWS SDK v3 for S3-compatible object storage.
 
 Development: Vitest, Supertest, ESLint flat config, Prettier, TSX, tsc-alias, Prisma CLI.
 
@@ -72,7 +72,7 @@ Docker development works without copying `.env` first:
 docker compose up --build
 ```
 
-API base URL: `http://localhost:3000/api/v1`
+API base URL: `http://localhost:4000/api/v1`
 
 Mailpit UI: `http://localhost:8025`
 
@@ -104,6 +104,8 @@ Implemented route groups:
 
 - `POST /auth/register`
 - `POST /auth/login`
+- `POST /auth/oauth/google`
+- `GET /auth/me`
 - `POST /auth/refresh`
 - `POST /auth/logout`
 - `GET /users/me`
@@ -126,6 +128,8 @@ Implemented route groups:
 ## Authentication
 
 Auth uses JWT access tokens and refresh token rotation. Refresh tokens are hashed before persistence. Every refresh revokes the used token and issues a new one in the same token family. Reuse of a revoked token revokes the whole family.
+
+Google OAuth is verified server-side through the auth provider abstraction. Browser sessions are cookie-first with httpOnly access/refresh cookies and a readable CSRF cookie. `AUTH_TOKEN_TRANSPORT=body` can be used for non-browser clients that need JSON token responses.
 
 The schema is ready for multi-device sessions, OAuth accounts, and email verification without coupling those concerns into trips or users.
 
@@ -168,6 +172,8 @@ Use `.env.example` as the source of truth. Required production values include:
 - `REDIS_URL`
 - `JWT_ACCESS_SECRET`
 - `JWT_REFRESH_SECRET`
+- `GOOGLE_OAUTH_CLIENT_ID`
+- `AUTH_TOKEN_TRANSPORT`
 - `CORS_ORIGINS`
 
 S3-compatible storage is configured through endpoint, region, bucket, access key, secret, and path-style options. This supports AWS S3, MinIO, R2, and other compatible providers behind the same interface.

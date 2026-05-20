@@ -22,6 +22,7 @@ enum AuthProvider {
   EMAIL
   GOOGLE
   GITHUB
+  APPLE
 }
 
 enum TripVisibility {
@@ -109,7 +110,9 @@ model OAuthAccount {
   userId         String       @db.Uuid
   provider       AuthProvider
   providerUserId String       @db.VarChar(255)
+  providerEmail  String?      @db.Citext
   profile        Json?
+  lastLoginAt    DateTime?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -117,6 +120,7 @@ model OAuthAccount {
 
   @@unique([provider, providerUserId])
   @@index([userId])
+  @@index([providerEmail])
 }
 
 model RefreshToken {

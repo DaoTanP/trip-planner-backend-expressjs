@@ -276,6 +276,9 @@ Always enforce:
 - Email addresses are case-insensitive.
 - User names must be present.
 - User locales and timezones must be valid supported values.
+- OAuth provider accounts must map one provider subject to one user.
+- OAuth auto-registration requires a verified provider email.
+- Linking an OAuth provider to an existing email account is allowed only after provider-side email verification.
 - Trip titles must be present.
 - Required foreign keys must point to existing records.
 - Enum values must be valid.
@@ -292,6 +295,8 @@ Business validation belongs in services when it depends on database state.
 - Comments must reference a target consistent with their trip.
 - Destination and place links must remain optional but valid when present.
 - Refresh token reuse must revoke the token family.
+- Logging out revokes the presented refresh token and clears browser session cookies.
+- Disabled users cannot obtain new sessions through password or OAuth login.
 
 Invalid:
 

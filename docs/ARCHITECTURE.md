@@ -306,13 +306,28 @@ Authentication uses:
 - hashed refresh token persistence
 - token families to detect reuse
 - middleware to attach `req.user`
+- backend-verified OAuth provider credentials
+- provider accounts in `OAuthAccount`
+- cookie-first browser sessions with optional body-token transport for non-browser clients
+- CSRF protection for cookie-backed unsafe requests
 
 ```text
 login/register -> issue access token + refresh token
+google credential -> provider verifier -> account link/create user -> issue token pair
 refresh -> verify token -> revoke old token -> issue new pair
 reuse of revoked token -> revoke entire token family
 logout -> revoke refresh token
 ```
+
+OAuth provider logic lives behind provider verifiers in `src/modules/auth/providers`. Controllers never verify provider tokens directly; they validate request shape, call `AuthService`, set cookies, and return a typed response.
+
+The backend remains the authentication source of truth. The frontend may collect a Google credential, but only the backend verifies issuer, audience, expiry, subject, and email verification before creating or linking a user. This prevents frontend-only trust and keeps future role, session, and account-linking rules centralized.
+
+Token transport is controlled by `AUTH_TOKEN_TRANSPORT`:
+
+- `cookie`: browser default; tokens are httpOnly cookies and omitted from response bodies.
+- `body`: non-browser clients; tokens are returned in JSON.
+- `both`: transitional mode for migrations.
 
 The schema is ready for OAuth accounts, email verification, and multi-device sessions without changing unrelated modules.
 

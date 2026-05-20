@@ -243,12 +243,15 @@ Each module owns its language and behavior.
 Examples:
 
 - `auth` owns tokens and sessions.
+- `auth/providers` owns OAuth credential verification.
 - `trips` owns trip access and trip lifecycle.
 - `itinerary` owns days and activities.
 - `places` owns place records and provider normalization.
 - `notifications` owns notification read state and delivery contracts.
 
 Do not put trip permission logic in `places` or notification delivery rules in `auth`.
+
+Auth agents must keep provider SDK calls behind provider abstractions, keep session/token issuance in `AuthService`, and keep browser transport concerns in cookie helpers. Do not put OAuth verification in controllers or frontend-facing docs only.
 
 ## 17. Testing Expectations
 
