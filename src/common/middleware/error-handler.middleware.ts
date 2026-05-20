@@ -59,6 +59,7 @@ export const errorHandler: ErrorRequestHandler = (error, req, res, _next) => {
     error: {
       code: appError.code,
       message,
+      requestId: req.id,
       ...(appError.details ? { details: appError.details } : {}),
       ...(!env.isProduction && error instanceof Error ? { stack: error.stack } : {})
     }

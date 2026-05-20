@@ -17,7 +17,10 @@ export class OAuthProviderRegistry {
   get(provider: Exclude<AuthProvider, 'EMAIL'>): OAuthProviderVerifier {
     const verifier = this.providers.get(provider);
     if (!verifier) {
-      throw new AuthError({ messageKey: 'errors.auth.oauthProviderNotConfigured' });
+      throw new AuthError({
+        messageKey: 'errors.auth.oauthProviderNotConfigured',
+        code: 'AUTH_OAUTH_PROVIDER_NOT_CONFIGURED'
+      });
     }
 
     return verifier;

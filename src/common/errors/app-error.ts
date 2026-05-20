@@ -2,6 +2,7 @@ import { HTTP_STATUS } from '@/common/constants/http-status.js';
 import { DEFAULT_LOCALE } from '@/common/localization/locales.js';
 import type { MessageKey } from '@/common/localization/messages.js';
 import { translate, type MessageParams } from '@/common/localization/translator.js';
+import type { ApiErrorCode } from '@/api/contracts/index.js';
 
 export type ErrorDetails = Record<string, unknown> | Array<Record<string, unknown>>;
 
@@ -11,6 +12,7 @@ export type AppErrorMessageInput =
       message?: string;
       messageKey?: MessageKey;
       messageParams?: MessageParams;
+      code?: ApiErrorCode;
       details?: ErrorDetails;
     };
 
@@ -18,6 +20,7 @@ export type AppErrorMessageOptions = {
   message?: string;
   messageKey?: MessageKey;
   messageParams?: MessageParams;
+  code?: ApiErrorCode;
   details?: ErrorDetails;
 };
 
@@ -30,6 +33,7 @@ export const resolveErrorMessageInput = (
   if (defaults.message !== undefined) options.message = defaults.message;
   if (defaults.messageKey !== undefined) options.messageKey = defaults.messageKey;
   if (defaults.messageParams !== undefined) options.messageParams = defaults.messageParams;
+  if (defaults.code !== undefined) options.code = defaults.code;
   if (defaults.details !== undefined) options.details = defaults.details;
 
   if (typeof input === 'string') {
@@ -44,6 +48,7 @@ export const resolveErrorMessageInput = (
   if (input.message !== undefined) options.message = input.message;
   if (input.messageKey !== undefined) options.messageKey = input.messageKey;
   if (input.messageParams !== undefined) options.messageParams = input.messageParams;
+  if (input.code !== undefined) options.code = input.code;
   if (input.details !== undefined) options.details = input.details;
 
   return options;
@@ -51,7 +56,7 @@ export const resolveErrorMessageInput = (
 
 export class AppError extends Error {
   readonly statusCode: number;
-  readonly code: string;
+  readonly code: ApiErrorCode;
   readonly details?: ErrorDetails;
   readonly isOperational: boolean;
   readonly messageKey?: MessageKey;
@@ -70,7 +75,7 @@ export class AppError extends Error {
     messageKey?: MessageKey;
     messageParams?: MessageParams;
     statusCode?: number;
-    code?: string;
+    code?: ApiErrorCode;
     details?: ErrorDetails;
     isOperational?: boolean;
   }) {

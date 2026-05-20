@@ -34,7 +34,7 @@ export const csrfProtection: RequestHandler = (req, _res, next) => {
   const csrfHeader = req.header('x-csrf-token');
 
   if (!csrfCookie || !csrfHeader || !secureCompare(csrfCookie, csrfHeader)) {
-    next(new AuthError({ messageKey: 'errors.auth.invalidCsrfToken' }));
+    next(new AuthError({ messageKey: 'errors.auth.invalidCsrfToken', code: 'AUTH_CSRF_INVALID' }));
     return;
   }
 

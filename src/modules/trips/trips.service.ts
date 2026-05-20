@@ -33,7 +33,9 @@ export class TripsService {
         page: query.page,
         limit: query.limit,
         total: result.total,
-        totalPages: Math.ceil(result.total / query.limit)
+        totalPages: Math.ceil(result.total / query.limit),
+        hasNextPage: query.page * query.limit < result.total,
+        hasPreviousPage: query.page > 1
       }
     };
   }

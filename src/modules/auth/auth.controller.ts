@@ -80,7 +80,10 @@ export class AuthController {
     const refreshToken = req.body.refreshToken ?? getRefreshTokenFromRequest(req);
 
     if (!refreshToken) {
-      throw new AuthError({ messageKey: 'errors.auth.missingRefreshToken' });
+      throw new AuthError({
+        messageKey: 'errors.auth.missingRefreshToken',
+        code: 'AUTH_MISSING_REFRESH_TOKEN'
+      });
     }
 
     const tokens = await this.service.refresh({ ...req.body, refreshToken }, getAuthContext(req));

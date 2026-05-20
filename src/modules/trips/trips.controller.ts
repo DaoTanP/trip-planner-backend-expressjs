@@ -1,8 +1,9 @@
 import type { Request, Response } from 'express';
 import type { ParamsDictionary } from 'express-serve-static-core';
 
+import { serializeTripSummary } from '@/api/serializers/trip.serializer.js';
 import { AuthError } from '@/common/errors/auth-error.js';
-import { sendCreated, sendNoContent, sendSuccess } from '@/common/utils/response.js';
+import { sendCreated, sendNoContent, sendPaginated, sendSuccess } from '@/common/utils/response.js';
 import type {
   CreateTripInput,
   ListTripsQuery,
@@ -24,22 +25,22 @@ export class TripsController {
 
   list = async (req: Request<ParamsDictionary, unknown, unknown, ListTripsQuery>, res: Response) => {
     const result = await this.service.listTrips(requireUserId(req), req.query);
-    return sendSuccess(res, result.items, { pagination: result.pagination });
+    return sendPaginated(res, result.items.map(serializeTripSummary), result.pagination);
   };
 
   create = async (req: Request<ParamsDictionary, unknown, CreateTripInput>, res: Response) => {
     const trip = await this.service.createTrip(requireUserId(req), req.body);
-    return sendCreated(res, { trip });
+    return sendCreated(res, { trip: serializeTripSummary(trip) });
   };
 
   get = async (req: Request<TripIdParams>, res: Response) => {
     const trip = await this.service.getTrip(requireUserId(req), req.params.tripId);
-    return sendSuccess(res, { trip });
+    return sendSuccess(res, { trip: serializeTripSummary(trip) });
   };
 
   update = async (req: Request<TripIdParams, unknown, UpdateTripInput>, res: Response) => {
     const trip = await this.service.updateTrip(requireUserId(req), req.params.tripId, req.body);
-    return sendSuccess(res, { trip });
+    return sendSuccess(res, { trip: serializeTripSummary(trip) });
   };
 
   delete = async (req: Request<TripIdParams>, res: Response) => {

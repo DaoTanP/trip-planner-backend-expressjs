@@ -287,6 +287,14 @@ Always enforce:
 
 Business validation belongs in services when it depends on database state.
 
+## 12a. API Contract Invariants
+
+- API v1 response shapes are stable contracts, not incidental controller output.
+- Frontend-facing DTOs should use strings for dates and timestamps.
+- Prisma enums are serialized as their API enum values, such as `DRAFT` or `PRIVATE`.
+- Pagination metadata must include `page`, `limit`, `total`, `totalPages`, `hasNextPage`, and `hasPreviousPage`.
+- Error codes must remain stable once released; add new codes rather than changing existing meanings.
+
 ## 13. Data Consistency Rules
 
 - A trip must not contain itinerary days from another trip.

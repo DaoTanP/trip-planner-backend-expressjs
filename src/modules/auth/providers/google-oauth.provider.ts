@@ -14,7 +14,10 @@ export class GoogleOAuthProvider implements OAuthProviderVerifier {
 
   async verifyCredential(credential: string): Promise<VerifiedOAuthProfile> {
     if (!env.GOOGLE_OAUTH_CLIENT_ID) {
-      throw new AuthError({ messageKey: 'errors.auth.oauthProviderNotConfigured' });
+      throw new AuthError({
+        messageKey: 'errors.auth.oauthProviderNotConfigured',
+        code: 'AUTH_OAUTH_PROVIDER_NOT_CONFIGURED'
+      });
     }
 
     try {
@@ -26,7 +29,10 @@ export class GoogleOAuthProvider implements OAuthProviderVerifier {
 
       const issuer = payload?.iss;
       if (!payload?.sub || !payload.email || !issuer || !GOOGLE_ISSUERS.has(issuer)) {
-        throw new AuthError({ messageKey: 'errors.auth.oauthInvalidCredential' });
+        throw new AuthError({
+          messageKey: 'errors.auth.oauthInvalidCredential',
+          code: 'AUTH_OAUTH_FAILED'
+        });
       }
 
       const providerProfile: Prisma.InputJsonObject = {
@@ -55,7 +61,10 @@ export class GoogleOAuthProvider implements OAuthProviderVerifier {
         throw error;
       }
 
-      throw new AuthError({ messageKey: 'errors.auth.oauthInvalidCredential' });
+      throw new AuthError({
+        messageKey: 'errors.auth.oauthInvalidCredential',
+        code: 'AUTH_OAUTH_FAILED'
+      });
     }
   }
 }

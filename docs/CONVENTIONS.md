@@ -257,9 +257,31 @@ Use:
 
 - `sendSuccess`
 - `sendCreated`
+- `sendPaginated`
 - `sendNoContent`
 
 Do not call `res.json` directly in controllers unless adding a new response helper is clearly unnecessary for a one-off internal endpoint.
+
+API DTOs that cross repository boundaries must be represented in `src/api/contracts/v1.ts`. Controllers should serialize Prisma records into DTOs before returning them; do not expose raw Prisma records when the record shape contains relations, dates, decimals, or fields not documented in the API contract.
+
+List responses should use `data` for the array and `meta.pagination` for pagination:
+
+```json
+{
+  "success": true,
+  "data": [],
+  "meta": {
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "total": 100,
+      "totalPages": 5,
+      "hasNextPage": true,
+      "hasPreviousPage": false
+    }
+  }
+}
+```
 
 ## 10. Error Handling Conventions
 

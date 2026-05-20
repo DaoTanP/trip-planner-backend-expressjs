@@ -17,7 +17,7 @@ const rateLimitOptions: Partial<Options> = {
       new AppError({
         messageKey: 'errors.rateLimit.exceeded',
         statusCode: HTTP_STATUS.TOO_MANY_REQUESTS,
-        code: 'RATE_LIMIT_EXCEEDED'
+        code: 'RATE_LIMITED'
       })
     );
   }

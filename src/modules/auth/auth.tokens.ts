@@ -64,14 +64,17 @@ export const verifyAccessToken = (token: string): AccessTokenPayload => {
   try {
     const payload = jwt.verify(token, env.JWT_ACCESS_SECRET) as AccessTokenPayload;
     if (payload.type !== 'access' || !payload.sub) {
-      throw new AuthError({ messageKey: 'errors.auth.invalidAccessToken' });
+      throw new AuthError({ messageKey: 'errors.auth.invalidAccessToken', code: 'AUTH_INVALID_SESSION' });
     }
     return payload;
   } catch (error) {
     if (error instanceof AuthError) {
       throw error;
     }
-    throw new AuthError({ messageKey: 'errors.auth.invalidOrExpiredAccessToken' });
+    throw new AuthError({
+      messageKey: 'errors.auth.invalidOrExpiredAccessToken',
+      code: 'AUTH_INVALID_SESSION'
+    });
   }
 };
 
@@ -79,13 +82,16 @@ export const verifyRefreshToken = (token: string): RefreshTokenPayload => {
   try {
     const payload = jwt.verify(token, env.JWT_REFRESH_SECRET) as RefreshTokenPayload;
     if (payload.type !== 'refresh' || !payload.sub || !payload.tokenId || !payload.familyId) {
-      throw new AuthError({ messageKey: 'errors.auth.invalidRefreshToken' });
+      throw new AuthError({ messageKey: 'errors.auth.invalidRefreshToken', code: 'AUTH_INVALID_SESSION' });
     }
     return payload;
   } catch (error) {
     if (error instanceof AuthError) {
       throw error;
     }
-    throw new AuthError({ messageKey: 'errors.auth.invalidOrExpiredRefreshToken' });
+    throw new AuthError({
+      messageKey: 'errors.auth.invalidOrExpiredRefreshToken',
+      code: 'AUTH_INVALID_SESSION'
+    });
   }
 };

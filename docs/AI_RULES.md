@@ -277,6 +277,8 @@ Before considering AI-generated code complete, verify:
 - Errors use typed error classes.
 - User-facing messages use localization keys or module-owned templates.
 - Responses use response helpers.
+- API shape changes update `src/api/contracts/v1.ts` and the synced frontend contract.
+- Controllers serialize records into contract DTOs instead of returning raw Prisma relation graphs.
 - Logs use Pino and contain no secrets.
 - Env vars are parsed through `env`.
 - Redis and BullMQ use shared config.

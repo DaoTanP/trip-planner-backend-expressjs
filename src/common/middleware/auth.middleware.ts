@@ -14,7 +14,7 @@ export const authenticate: RequestHandler = (req, _res, next) => {
     : getAccessTokenFromRequest(req);
 
   if (!token) {
-    next(new AuthError({ messageKey: 'errors.auth.missingBearer' }));
+    next(new AuthError({ messageKey: 'errors.auth.missingBearer', code: 'AUTH_MISSING_TOKEN' }));
     return;
   }
 

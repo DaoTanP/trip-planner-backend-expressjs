@@ -1,22 +1,10 @@
-import type { AuthProvider, Prisma, User, UserRole } from '@prisma/client';
+import type { AuthProvider, Prisma, User } from '@prisma/client';
 
-export type PublicUser = {
-  id: string;
-  email: string;
-  name: string;
-  role: UserRole;
-  avatarUrl: string | null;
-  locale: string;
-  timezone: string;
-  emailVerifiedAt: Date | null;
-  createdAt: Date;
-};
+import type { AuthTokensDto, PublicUserDto } from '@/api/contracts/index.js';
 
-export type TokenPair = {
-  accessToken: string;
-  refreshToken: string;
-  expiresIn: string;
-};
+export type PublicUser = PublicUserDto;
+
+export type TokenPair = AuthTokensDto;
 
 export type AuthResult = {
   user: PublicUser;
@@ -58,6 +46,6 @@ export const toPublicUser = (user: User): PublicUser => ({
   avatarUrl: user.avatarUrl,
   locale: user.locale,
   timezone: user.timezone,
-  emailVerifiedAt: user.emailVerifiedAt,
-  createdAt: user.createdAt
+  emailVerifiedAt: user.emailVerifiedAt?.toISOString() ?? null,
+  createdAt: user.createdAt.toISOString()
 });

@@ -130,6 +130,16 @@ create = async (req, res) => {
 };
 ```
 
+## 6a. API Contract Architecture
+
+API v1 is mounted through `API_PREFIX`, which should be `/api/v1` for current deployments. Version-specific route composition lives in `src/api/v1.router.ts`; module routers still live with the module that owns the behavior.
+
+The canonical TypeScript API contract lives in `src/api/contracts/v1.ts`. It defines success responses, error responses, pagination metadata, auth DTOs, trip DTOs, and route request/response mappings.
+
+The frontend consumes a synced generated-style copy of this contract. Backend changes that affect API shape must update the contract first, then sync the frontend copy with `npm run contracts:sync`.
+
+Why: OpenAPI generation is the preferred long-term direction for public or mobile clients, but this pure TypeScript contract keeps today’s two-repo setup lightweight for a solo/small team while preventing handwritten frontend DTO drift.
+
 ## 7. Database Access Flow
 
 All normal database access flows through Prisma repositories.
@@ -233,12 +243,15 @@ The global error handler converts thrown errors into consistent API responses.
   "success": false,
   "error": {
     "code": "NOT_FOUND",
-    "message": "Trip not found"
+    "message": "Trip not found",
+    "requestId": "req_..."
   }
 }
 ```
 
 Why: consistent error shapes are easier for clients, tests, logs, and AI agents to reason about.
+
+Stable error `code` values are part of the API contract. Backend messages may be localized for non-web clients, but frontend UX should map codes to `next-intl` keys instead of displaying backend text blindly.
 
 ## 13. Validation Architecture
 

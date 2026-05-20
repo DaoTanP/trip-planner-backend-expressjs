@@ -78,12 +78,18 @@ export class AuthService {
   async login(input: LoginInput, context: AuthRequestContext): Promise<AuthResult> {
     const user = await this.repository.findUserByEmail(input.email);
     if (!user?.passwordHash) {
-      throw new AuthError({ messageKey: 'errors.auth.invalidCredentials' });
+      throw new AuthError({
+        messageKey: 'errors.auth.invalidCredentials',
+        code: 'AUTH_INVALID_CREDENTIALS'
+      });
     }
 
     const passwordMatches = await bcrypt.compare(input.password, user.passwordHash);
     if (!passwordMatches) {
-      throw new AuthError({ messageKey: 'errors.auth.invalidCredentials' });
+      throw new AuthError({
+        messageKey: 'errors.auth.invalidCredentials',
+        code: 'AUTH_INVALID_CREDENTIALS'
+      });
     }
 
     if (user.status === 'DISABLED') {
@@ -105,7 +111,10 @@ export class AuthService {
     const profile = await this.oauthProviders.get('GOOGLE').verifyCredential(input.credential);
 
     if (!profile.emailVerified) {
-      throw new AuthError({ messageKey: 'errors.auth.oauthEmailNotVerified' });
+      throw new AuthError({
+        messageKey: 'errors.auth.oauthEmailNotVerified',
+        code: 'AUTH_OAUTH_FAILED'
+      });
     }
 
     const existingAccount = await this.repository.findOAuthAccount(
@@ -173,7 +182,7 @@ export class AuthService {
   async getCurrentUser(userId: string): Promise<AuthResult['user']> {
     const user = await this.repository.findUserById(userId);
     if (!user) {
-      throw new AuthError({ messageKey: 'errors.auth.invalidSession' });
+      throw new AuthError({ messageKey: 'errors.auth.invalidSession', code: 'AUTH_INVALID_SESSION' });
     }
 
     this.ensureUserCanAuthenticate(user);
@@ -195,17 +204,26 @@ export class AuthService {
       persistedToken.userId !== payload.sub ||
       persistedToken.familyId !== payload.familyId
     ) {
-      throw new AuthError({ messageKey: 'errors.auth.refreshTokenNotRecognized' });
+      throw new AuthError({
+        messageKey: 'errors.auth.refreshTokenNotRecognized',
+        code: 'AUTH_INVALID_SESSION'
+      });
     }
 
     if (persistedToken.revokedAt) {
       await this.repository.revokeTokenFamily(persistedToken.familyId);
-      throw new AuthError({ messageKey: 'errors.auth.refreshTokenReuseDetected' });
+      throw new AuthError({
+        messageKey: 'errors.auth.refreshTokenReuseDetected',
+        code: 'AUTH_REFRESH_TOKEN_REUSE_DETECTED'
+      });
     }
 
     if (persistedToken.expiresAt.getTime() <= Date.now()) {
       await this.repository.revokeRefreshToken(persistedToken.id);
-      throw new AuthError({ messageKey: 'errors.auth.refreshTokenExpired' });
+      throw new AuthError({
+        messageKey: 'errors.auth.refreshTokenExpired',
+        code: 'AUTH_REFRESH_TOKEN_EXPIRED'
+      });
     }
 
     if (persistedToken.user.status === 'DISABLED') {
