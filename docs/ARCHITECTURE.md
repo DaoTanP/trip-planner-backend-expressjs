@@ -258,11 +258,7 @@ Stable error `code` values are part of the API contract. Backend messages may be
 Zod validates request `body`, `params`, and `query` at route boundaries.
 
 ```ts
-tripsRouter.post(
-  '/',
-  validateRequest(createTripSchema),
-  asyncHandler(tripsController.create)
-);
+tripsRouter.post('/', validateRequest(createTripSchema), asyncHandler(tripsController.create));
 ```
 
 Zod handles input shape. Services handle domain rules that require database state, permissions, or multi-entity checks.
@@ -413,3 +409,68 @@ When one module needs another module's rule, call the other module's service. Do
 - CQRS without real read/write model pressure.
 - Microservices for organizational style rather than operational need.
 - New abstractions without repeated use or clear simplification.
+
+## 22. Trip Editor Domain Architecture
+
+The trip editor API is built around a complete trip detail graph:
+
+```text
+Trip
+  -> TripDay[]
+    -> ItineraryItem[]
+      -> Place?
+  -> TripNote[]
+  -> collaborators
+```
+
+Prisma model names use editor-facing domain language (`TripDay`, `ItineraryItem`, `TripNote`). `TripDay` and `ItineraryItem` map to the existing `ItineraryDay` and `Activity` tables with Prisma `@@map`, so local data can migrate additively instead of requiring destructive table renames.
+
+The editor uses these module boundaries:
+
+- `trips`: trip lifecycle, access checks, trip detail serialization, trip notes.
+- `itinerary`: days, itinerary items, transactional reorder operations.
+- `places`: internal place records and provider-neutral search/detail APIs.
+
+Why: trip editing needs a rich graph, but each module still owns one business capability. The frontend gets a normalized contract without raw Prisma records leaking into API responses.
+
+## 23. Ordering And Optimistic Updates
+
+Ordering uses integer positions with spacing. Reorder endpoints accept the final client order and rewrite positions transactionally.
+
+- Day reorder: `PATCH /trips/:tripId/days/reorder`
+- Item reorder: `PATCH /trips/:tripId/itinerary-items/reorder`
+
+The item reorder payload is intentionally cross-day capable:
+
+```json
+{
+  "updates": [{ "itemId": "...", "dayId": "...", "order": 1024 }],
+  "clientMutationId": "optional-client-id"
+}
+```
+
+Services validate that all target days and items belong to the same trip before any writes occur. Reorder writes happen inside Prisma transactions so optimistic frontend updates either reconcile with one committed order or roll back cleanly.
+
+## 24. Place Search Provider Boundary
+
+`places` currently searches internal place records. Environment variables reserve future provider configuration:
+
+- `PLACES_PROVIDER`
+- `GOOGLE_PLACES_API_KEY`
+- `MAPBOX_ACCESS_TOKEN`
+- `OSM_GEOCODING_ENDPOINT`
+
+Future Google Places, Mapbox, or OSM geocoding adapters should normalize external records into the `Place` contract before returning them. Controllers should not call provider SDKs directly.
+
+## 25. Realtime Preparation
+
+Realtime collaboration should be added as a transport over the same domain services, not as a parallel write path.
+
+Recommended future shape:
+
+- Services emit trip mutation events after committed writes.
+- Redis coordinates websocket fanout and presence.
+- `clientMutationId` suppresses echo updates for the originating client.
+- The frontend patches or invalidates React Query caches from realtime events.
+
+Do not let websocket handlers bypass `TripsService.ensureCanEditTrip` or itinerary service validation.

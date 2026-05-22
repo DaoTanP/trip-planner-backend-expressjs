@@ -45,8 +45,20 @@ const envSchema = z.object({
 
   GOOGLE_OAUTH_CLIENT_ID: optionalString,
 
-  CORS_ORIGINS: z.string().default('http://localhost:5173,http://localhost:3000').transform(stringToArray),
-  RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(15 * 60 * 1000),
+  PLACES_PROVIDER: z.enum(['internal', 'google', 'mapbox', 'osm']).default('internal'),
+  GOOGLE_PLACES_API_KEY: optionalString,
+  MAPBOX_ACCESS_TOKEN: optionalString,
+  OSM_GEOCODING_ENDPOINT: z.string().url().default('https://nominatim.openstreetmap.org/search'),
+
+  CORS_ORIGINS: z
+    .string()
+    .default('http://localhost:5173,http://localhost:3000')
+    .transform(stringToArray),
+  RATE_LIMIT_WINDOW_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(15 * 60 * 1000),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(300),
 
   S3_ENDPOINT: z.string().optional(),

@@ -560,3 +560,13 @@ const secret = env.JWT_ACCESS_SECRET;
 - Silent catch blocks.
 - Unbounded Redis keys without TTL.
 - Jobs that are not safe to retry.
+
+## 22. Trip Editor API Conventions
+
+- Trip detail responses must be serialized through API serializers, not returned as raw Prisma graphs.
+- Reorder endpoints must run in transactions.
+- Reorder services must validate that every day/item in the payload belongs to the target trip.
+- Use `TripDay` and `ItineraryItem` naming in new code. Compatibility aliases may exist temporarily, but new API contracts should use editor-facing names.
+- Use `clientMutationId` on reorder APIs when a frontend interaction may also receive a future realtime event.
+- Keep place provider integration behind `places.service.ts` or provider adapters. Controllers must not call Google, Mapbox, or OSM directly.
+- Add new trip editor environment variables to `.env.example`, `docker-compose.yml`, and `src/config/env.ts`.

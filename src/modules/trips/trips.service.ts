@@ -4,8 +4,10 @@ import { AuthorizationError } from '@/common/errors/authorization-error.js';
 import { NotFoundError } from '@/common/errors/not-found-error.js';
 import { parseDateOnly } from '@/common/utils/date.js';
 import type {
+  CreateTripNoteInput,
   CreateTripInput,
   ListTripsQuery,
+  UpdateTripNoteInput,
   UpdateTripInput
 } from '@/modules/trips/trips.schemas.js';
 import { tripsRepository, type TripsRepository } from '@/modules/trips/trips.repository.js';
@@ -74,8 +76,10 @@ export class TripsService {
     const data: Prisma.TripUpdateInput = {};
     if (input.title !== undefined) data.title = input.title;
     if (input.description !== undefined) data.description = input.description;
-    if (input.startDate !== undefined) data.startDate = input.startDate ? parseDateOnly(input.startDate) : null;
-    if (input.endDate !== undefined) data.endDate = input.endDate ? parseDateOnly(input.endDate) : null;
+    if (input.startDate !== undefined)
+      data.startDate = input.startDate ? parseDateOnly(input.startDate) : null;
+    if (input.endDate !== undefined)
+      data.endDate = input.endDate ? parseDateOnly(input.endDate) : null;
     if (input.timezone !== undefined) data.timezone = input.timezone;
     if (input.visibility !== undefined) data.visibility = input.visibility;
     if (input.status !== undefined) data.status = input.status;
@@ -83,8 +87,16 @@ export class TripsService {
     if (input.preferences !== undefined) data.preferences = input.preferences;
     if (input.budget !== undefined) data.budget = input.budget;
     if (input.metadata !== undefined) data.metadata = input.metadata;
+    data.version = { increment: 1 };
 
-    return this.repository.update(tripId, data);
+    await this.repository.update(tripId, data);
+
+    const trip = await this.repository.findById(tripId);
+    if (!trip) {
+      throw new NotFoundError({ resourceKey: 'resources.trip' });
+    }
+
+    return trip;
   }
 
   async deleteTrip(userId: string, tripId: string): Promise<void> {
@@ -97,6 +109,52 @@ export class TripsService {
     }
 
     await this.repository.delete(tripId);
+  }
+
+  async createTripNote(userId: string, tripId: string, input: CreateTripNoteInput) {
+    await this.ensureCanEditTrip(userId, tripId);
+
+    const data: Prisma.TripNoteUncheckedCreateInput = {
+      tripId,
+      authorId: userId,
+      body: input.body,
+      order: input.order,
+      pinned: input.pinned
+    };
+
+    if (input.title !== undefined) data.title = input.title;
+    if (input.metadata !== undefined) data.metadata = input.metadata;
+
+    return this.repository.createNote(data);
+  }
+
+  async updateTripNote(userId: string, noteId: string, input: UpdateTripNoteInput) {
+    const access = await this.repository.findNoteTripId(noteId);
+    if (!access) {
+      throw new NotFoundError({ resourceKey: 'resources.tripNote' });
+    }
+
+    await this.ensureCanEditTrip(userId, access.tripId);
+
+    const data: Prisma.TripNoteUpdateInput = {};
+    if (input.title !== undefined) data.title = input.title;
+    if (input.body !== undefined) data.body = input.body;
+    if (input.order !== undefined) data.order = input.order;
+    if (input.pinned !== undefined) data.pinned = input.pinned;
+    if (input.metadata !== undefined) data.metadata = input.metadata;
+    data.version = { increment: 1 };
+
+    return this.repository.updateNote(noteId, data);
+  }
+
+  async deleteTripNote(userId: string, noteId: string): Promise<void> {
+    const access = await this.repository.findNoteTripId(noteId);
+    if (!access) {
+      throw new NotFoundError({ resourceKey: 'resources.tripNote' });
+    }
+
+    await this.ensureCanEditTrip(userId, access.tripId);
+    await this.repository.deleteNote(noteId);
   }
 
   async ensureCanAccessTrip(userId: string, tripId: string): Promise<void> {
@@ -112,7 +170,8 @@ export class TripsService {
       throw new NotFoundError({ resourceKey: 'resources.trip' });
     }
 
-    const role: TripRole = access.ownerId === userId ? 'OWNER' : (access.collaborators[0]?.role ?? 'VIEWER');
+    const role: TripRole =
+      access.ownerId === userId ? 'OWNER' : (access.collaborators[0]?.role ?? 'VIEWER');
     if (!editableRoles.includes(role)) {
       throw new AuthorizationError();
     }

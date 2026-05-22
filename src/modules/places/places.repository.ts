@@ -26,6 +26,12 @@ export class PlacesRepository {
       data
     });
   }
+
+  findById(id: string): Promise<Place | null> {
+    return prisma.place.findUnique({
+      where: { id }
+    });
+  }
 }
 
 export const placesRepository = new PlacesRepository();

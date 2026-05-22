@@ -45,11 +45,13 @@ enum TripStatus {
   ARCHIVED
 }
 
-enum ActivityStatus {
+enum ItineraryItemStatus {
   PLANNED
   BOOKED
   COMPLETED
   CANCELLED
+
+  @@map("ActivityStatus")
 }
 
 enum CommentTargetType {
@@ -100,6 +102,7 @@ model User {
   collaborations TripCollaborator[]
   comments       Comment[]
   notifications  Notification[]
+  tripNotes      TripNote[]
 
   @@index([status])
   @@index([createdAt])
@@ -156,13 +159,15 @@ model Trip {
   preferences   Json?
   budget        Json?
   metadata      Json?
+  version       Int            @default(1)
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
   owner         User               @relation("TripOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   destinations  Destination[]
   collaborators TripCollaborator[]
-  days          ItineraryDay[]
+  days          TripDay[]
+  notes         TripNote[]
   comments      Comment[]
   notifications Notification[]
 
@@ -214,7 +219,7 @@ model Destination {
   @@index([placeId])
 }
 
-model ItineraryDay {
+model TripDay {
   id              String    @id @default(uuid()) @db.Uuid
   tripId          String    @db.Uuid
   date            DateTime  @db.Date
@@ -222,42 +227,50 @@ model ItineraryDay {
   notes           String?   @db.Text
   order           Int       @default(0)
   weatherSnapshot Json?
+  version         Int       @default(1)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  trip       Trip       @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  activities Activity[]
-  comments   Comment[]
+  trip     Trip            @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  items    ItineraryItem[]
+  comments Comment[]
 
   @@unique([tripId, date])
   @@index([tripId, order])
+  @@map("ItineraryDay")
 }
 
-model Activity {
-  id          String         @id @default(uuid()) @db.Uuid
-  dayId       String         @db.Uuid
-  placeId     String?        @db.Uuid
-  title       String         @db.VarChar(180)
-  description String?        @db.Text
-  startTime   DateTime?
-  endTime     DateTime?
-  timezone    String         @default("UTC") @db.VarChar(80)
-  status      ActivityStatus @default(PLANNED)
-  cost        Decimal?       @db.Decimal(12, 2)
-  currency    String?        @db.VarChar(3)
-  bookingInfo Json?
-  metadata    Json?
-  order       Int            @default(0)
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+model ItineraryItem {
+  id                  String              @id @default(uuid()) @db.Uuid
+  dayId               String              @db.Uuid
+  placeId             String?             @db.Uuid
+  title               String              @db.VarChar(180)
+  description         String?             @db.Text
+  startTime           DateTime?
+  endTime             DateTime?
+  timezone            String              @default("UTC") @db.VarChar(80)
+  status              ItineraryItemStatus @default(PLANNED)
+  cost                Decimal?            @db.Decimal(12, 2)
+  currency            String?             @db.VarChar(3)
+  durationMinutes     Int?
+  travelMode          String?             @db.VarChar(40)
+  travelTimeMinutes   Int?
+  routePolyline       String?             @db.Text
+  bookingInfo         Json?
+  metadata            Json?
+  order               Int                 @default(0)
+  version             Int                 @default(1)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
 
-  day      ItineraryDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
-  place    Place?       @relation(fields: [placeId], references: [id], onDelete: SetNull)
+  day      TripDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  place    Place?  @relation(fields: [placeId], references: [id], onDelete: SetNull)
   comments Comment[]
 
   @@index([dayId, order])
   @@index([placeId])
   @@index([status])
+  @@map("Activity")
 }
 
 model Place {
@@ -269,18 +282,41 @@ model Place {
   countryCode      String?     @db.VarChar(2)
   latitude         Decimal?    @db.Decimal(9, 6)
   longitude        Decimal?    @db.Decimal(9, 6)
+  websiteUrl       String?     @db.Text
+  phoneNumber      String?     @db.VarChar(40)
+  timezone         String?     @db.VarChar(80)
   categories       String[]    @default([])
   sourcePayload    Json?
   metadata         Json?
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
 
-  destinations Destination[]
-  activities   Activity[]
+  destinations   Destination[]
+  itineraryItems ItineraryItem[]
 
   @@unique([source, externalId])
   @@index([name])
   @@index([countryCode])
+}
+
+model TripNote {
+  id        String   @id @default(uuid()) @db.Uuid
+  tripId    String   @db.Uuid
+  authorId  String?  @db.Uuid
+  title     String?  @db.VarChar(160)
+  body      String   @db.Text
+  order     Int      @default(0)
+  pinned    Boolean  @default(false)
+  metadata  Json?
+  version   Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  trip   Trip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  author User? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([tripId, order])
+  @@index([authorId])
 }
 
 model Comment {
@@ -297,8 +333,8 @@ model Comment {
 
   author   User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
   trip     Trip          @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  day      ItineraryDay? @relation(fields: [dayId], references: [id], onDelete: Cascade)
-  activity Activity?     @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  day      TripDay?        @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  activity ItineraryItem?  @relation(fields: [activityId], references: [id], onDelete: Cascade)
 
   @@index([tripId, createdAt])
   @@index([dayId])

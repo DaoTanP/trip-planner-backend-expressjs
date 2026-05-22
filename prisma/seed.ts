@@ -52,7 +52,7 @@ async function main() {
             date: new Date('2026-06-01'),
             title: 'Arrival in Hanoi',
             order: 1,
-            activities: {
+            items: {
               create: [
                 {
                   title: 'Old Quarter walk',

@@ -7,13 +7,14 @@ This document defines stable business rules and domain invariants for the Trip P
 - User: a person with an account.
 - Trip: a planned travel experience owned by exactly one user.
 - Destination: a city, region, or place included in a trip.
-- Itinerary day: one calendar day within a trip plan.
-- Activity: a planned action inside an itinerary day.
-- Place: a reusable location record that may be attached to destinations or activities.
+- Trip day: one calendar day within a trip plan.
+- Itinerary item: a planned stop, activity, reminder, booking, or note inside a trip day.
+- Trip note: free-form planning text attached to a trip.
+- Place: a reusable location record that may be attached to destinations or itinerary items.
 - Collaborator: a user or invited email with access to a trip.
 - Owner: the user with ultimate control over a trip.
 - Notification: a user-facing message about trip activity or system events.
-- Recommendation: an AI or rules-based suggestion for trips, places, or activities.
+- Recommendation: an AI or rules-based suggestion for trips, places, or itinerary items.
 
 ## 2. Core Business Entities
 
@@ -23,8 +24,9 @@ Core entities:
 - Trip
 - TripCollaborator
 - Destination
-- ItineraryDay
-- Activity
+- TripDay
+- ItineraryItem
+- TripNote
 - Place
 - Comment
 - Notification
@@ -35,11 +37,12 @@ Entity relationships:
 ```text
 User owns many Trips
 Trip has many Destinations
-Trip has many ItineraryDays
-ItineraryDay has many Activities
-Activity may reference one Place
+Trip has many TripDays
+TripDay has many ItineraryItems
+ItineraryItem may reference one Place
+Trip has many TripNotes
 Trip has many Collaborators
-Trip, ItineraryDay, and Activity may have Comments
+Trip, TripDay, and ItineraryItem may have Comments
 User has many Notifications
 ```
 
@@ -96,7 +99,7 @@ Pending invited email can access trip data
 Roles:
 
 - OWNER: full control, including delete and collaborator management.
-- EDITOR: can modify itinerary, destinations, activities, comments, and trip details.
+- EDITOR: can modify itinerary, destinations, itinerary items, comments, and trip details.
 - VIEWER: can read shared trip data and add comments only if the product explicitly allows it.
 
 Baseline permission matrix:
@@ -107,9 +110,9 @@ Read trip               yes    yes     yes
 Update trip             yes    yes     no
 Delete trip             yes    no      no
 Manage collaborators    yes    no      no
-Create itinerary day    yes    yes     no
-Create activity         yes    yes     no
-Update activity         yes    yes     no
+Create trip day         yes    yes     no
+Create itinerary item   yes    yes     no
+Update itinerary item   yes    yes     no
 Read notifications      own    own     own
 ```
 
@@ -139,29 +142,30 @@ Archived trip shown as active by default
 Completed trip silently rewritten by AI generation
 ```
 
-## 7. Activity Constraints
+## 7. Itinerary Item Constraints
 
-- Every activity must belong to exactly one itinerary day.
-- An activity cannot exist directly under a trip without a day.
-- An activity may reference a place, but manual activities without a place are valid.
-- Activity order is scoped to its day.
-- Activity status must reflect planning state: PLANNED, BOOKED, COMPLETED, or CANCELLED.
-- Activity cost must not be negative.
+- Every itinerary item must belong to exactly one trip day.
+- An itinerary item cannot exist directly under a trip without a day.
+- An itinerary item may reference a place, but manual items without a place are valid.
+- Item order is scoped to its day unless a reorder payload explicitly moves it to another day in the same trip.
+- Item status must reflect planning state: PLANNED, BOOKED, COMPLETED, or CANCELLED.
+- Item cost and duration values must not be negative.
+- Route metadata such as travel time, travel mode, and route polyline is optional and must not replace the place relationship.
 
 Valid:
 
 ```text
 Day 1
-  Activity: Museum visit, order 1, status PLANNED
-  Activity: Dinner, order 2, placeId null
+  Itinerary item: Museum visit, order 1024, status PLANNED
+  Itinerary item: Dinner, order 2048, placeId null
 ```
 
 Invalid:
 
 ```text
-Activity without dayId
-Activity cost = -10
-Activity belongs to a day from another trip context
+Itinerary item without dayId
+Itinerary item cost = -10
+Itinerary item belongs to a day from another trip context
 ```
 
 ## 8. Date/Time Constraints
@@ -169,9 +173,9 @@ Activity belongs to a day from another trip context
 - Trip `startDate` must be before or equal to `endDate`.
 - Itinerary day dates should fall within the trip range when the trip has dates.
 - A trip day should be unique per trip and date.
-- Activity `startTime` must be before or equal to `endTime`.
+- Itinerary item `startTime` must be before or equal to `endTime`.
 - Store timestamps in UTC.
-- Preserve user-facing timezone on trips and activities.
+- Preserve user-facing timezone on trips and itinerary items.
 - Date-only values represent local calendar dates, not instants.
 - User timezone preferences must be valid IANA timezones and default to UTC.
 
@@ -180,14 +184,14 @@ Valid:
 ```text
 Trip: 2026-06-01 to 2026-06-07
 Day: 2026-06-03
-Activity: 09:00 to 11:00 in Asia/Bangkok
+Itinerary item: 09:00 to 11:00 in Asia/Bangkok
 ```
 
 Invalid:
 
 ```text
 Trip: 2026-06-07 to 2026-06-01
-Activity: ends before it starts
+Itinerary item: ends before it starts
 Day: duplicate date for same trip
 ```
 
@@ -246,9 +250,9 @@ AI-generated plans must never bypass core domain rules.
 Rules:
 
 - AI suggestions are suggestions until accepted by a permitted user.
-- AI must not overwrite confirmed or booked activities without explicit user confirmation.
+- AI must not overwrite confirmed or booked itinerary items without explicit user confirmation.
 - AI output must be validated like user input.
-- AI-generated activities must belong to itinerary days.
+- AI-generated itinerary items must belong to trip days.
 - AI must respect trip date range, timezone, budget, destination, and collaborator permissions.
 - AI should preserve user-authored notes unless asked to replace them.
 - AI recommendations must be traceable as AI-generated when stored.
@@ -256,16 +260,16 @@ Rules:
 Valid:
 
 ```text
-AI proposes 5 activities for Day 2
-Editor accepts 3 activities
-Accepted activities are persisted after validation
+AI proposes 5 itinerary items for Day 2
+Editor accepts 3 itinerary items
+Accepted itinerary items are persisted after validation
 ```
 
 Invalid:
 
 ```text
 AI deletes booked hotel reservation
-AI creates activity outside trip dates
+AI creates an itinerary item outside trip dates
 AI changes a trip owned by another user without permission
 ```
 
@@ -297,8 +301,8 @@ Business validation belongs in services when it depends on database state.
 
 ## 13. Data Consistency Rules
 
-- A trip must not contain itinerary days from another trip.
-- Activities must not be moved across trips without explicit handling.
+- A trip must not contain trip days from another trip.
+- Itinerary items must not be moved across trips without explicit handling.
 - Collaborator permissions must be checked against the target trip.
 - Comments must reference a target consistent with their trip.
 - Destination and place links must remain optional but valid when present.
@@ -309,15 +313,15 @@ Business validation belongs in services when it depends on database state.
 Invalid:
 
 ```text
-Comment tripId = Trip A and activityId = Activity from Trip B
-Activity dayId points to Day from a trip the user cannot edit
+Comment tripId = Trip A and activityId = ItineraryItem from Trip B
+Itinerary item dayId points to Day from a trip the user cannot edit
 ```
 
 ## 14. Deletion Rules
 
 - Trip deletion is owner-only.
-- Deleting a trip deletes its itinerary days, activities, comments, collaborators, and trip notifications as defined by persistence rules.
-- Deleting an activity should not delete its place record.
+- Deleting a trip deletes its trip days, itinerary items, trip notes, comments, collaborators, and trip notifications as defined by persistence rules.
+- Deleting an itinerary item should not delete its place record.
 - Removing a collaborator should not delete the user account.
 - Logout revokes a refresh token, not the user account.
 
@@ -341,7 +345,7 @@ Important future audit events:
 - collaborator invite, acceptance, role change, and removal
 - destructive trip deletion
 - AI-generated itinerary acceptance
-- booked activity changes
+- booked itinerary item changes
 - authentication anomalies such as refresh token reuse
 
 Audit logging should be added when product or security needs justify it. Do not mix audit history into normal comments or notifications.
@@ -358,4 +362,4 @@ The domain should evolve toward:
 - place search provider normalization
 - analytics events
 
-Future features must preserve existing invariants: one trip owner, activities under trip days, permissions scoped to trips, and AI output validated before persistence.
+Future features must preserve existing invariants: one trip owner, itinerary items under trip days, permissions scoped to trips, and AI output validated before persistence.

@@ -1,8 +1,13 @@
 import type { Prisma } from '@prisma/client';
 
+import { NotFoundError } from '@/common/errors/not-found-error.js';
 import { logger } from '@/common/logger/logger.js';
 import { cache } from '@/config/redis.js';
-import type { CreatePlaceInput, ListPlacesQuery } from '@/modules/places/places.schemas.js';
+import type {
+  CreatePlaceInput,
+  ListPlacesQuery,
+  SearchPlacesQuery
+} from '@/modules/places/places.schemas.js';
 import { placesRepository, type PlacesRepository } from '@/modules/places/places.repository.js';
 
 export class PlacesService {
@@ -37,6 +42,26 @@ export class PlacesService {
     return places;
   }
 
+  searchPlaces(query: SearchPlacesQuery) {
+    const filters: ListPlacesQuery = {
+      limit: query.limit
+    };
+
+    if (query.q !== undefined) filters.q = query.q;
+    if (query.countryCode !== undefined) filters.countryCode = query.countryCode;
+
+    return this.listPlaces(filters);
+  }
+
+  async getPlace(placeId: string) {
+    const place = await this.repository.findById(placeId);
+    if (!place) {
+      throw new NotFoundError({ resourceKey: 'resources.place' });
+    }
+
+    return place;
+  }
+
   createPlace(input: CreatePlaceInput) {
     const data: Prisma.PlaceCreateInput = {
       source: input.source,
@@ -49,6 +74,9 @@ export class PlacesService {
     if (input.countryCode !== undefined) data.countryCode = input.countryCode;
     if (input.latitude !== undefined) data.latitude = input.latitude;
     if (input.longitude !== undefined) data.longitude = input.longitude;
+    if (input.websiteUrl !== undefined) data.websiteUrl = input.websiteUrl;
+    if (input.phoneNumber !== undefined) data.phoneNumber = input.phoneNumber;
+    if (input.timezone !== undefined) data.timezone = input.timezone;
     if (input.sourcePayload !== undefined) data.sourcePayload = input.sourcePayload;
     if (input.metadata !== undefined) data.metadata = input.metadata;
 

@@ -84,13 +84,16 @@ export class TripsRepository {
         days: {
           orderBy: { order: 'asc' },
           include: {
-            activities: {
+            items: {
               orderBy: { order: 'asc' },
               include: {
                 place: true
               }
             }
           }
+        },
+        notes: {
+          orderBy: [{ pinned: 'desc' }, { order: 'asc' }, { createdAt: 'asc' }]
         }
       }
     });
@@ -132,6 +135,32 @@ export class TripsRepository {
     return prisma.trip.update({
       where: { id },
       data
+    });
+  }
+
+  createNote(data: Prisma.TripNoteUncheckedCreateInput) {
+    return prisma.tripNote.create({
+      data
+    });
+  }
+
+  findNoteTripId(noteId: string): Promise<{ tripId: string } | null> {
+    return prisma.tripNote.findUnique({
+      where: { id: noteId },
+      select: { tripId: true }
+    });
+  }
+
+  updateNote(id: string, data: Prisma.TripNoteUpdateInput) {
+    return prisma.tripNote.update({
+      where: { id },
+      data
+    });
+  }
+
+  deleteNote(id: string) {
+    return prisma.tripNote.delete({
+      where: { id }
     });
   }
 

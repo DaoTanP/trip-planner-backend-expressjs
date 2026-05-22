@@ -285,3 +285,24 @@ Before considering AI-generated code complete, verify:
 - New dependencies are justified.
 - Tests or a clear verification note are included.
 - Architecture, conventions, domain rules, or ADR docs are updated if needed.
+
+## 19. Trip Editor Rules
+
+AI agents changing the trip editor backend must:
+
+- Keep trip editor writes behind `TripsService`, `ItineraryService`, or `PlacesService`.
+- Use `TripDay`, `ItineraryItem`, and `TripNote` names in new code.
+- Keep compatibility aliases short-lived and documented.
+- Validate reorder payload ownership before transactional writes.
+- Preserve `clientMutationId` fields on reorder contracts for future realtime echo suppression.
+- Serialize trip detail responses through `trip.serializer.ts`.
+- Update `src/api/contracts/v1.ts` and sync the frontend contract after API shape changes.
+- Add provider configuration to `src/config/env.ts`, `.env.example`, and Docker compose.
+
+AI agents must not:
+
+- Return raw Prisma trip graphs to the frontend.
+- Let websocket or future realtime handlers bypass permission checks.
+- Move itinerary items across trips.
+- Couple place search to a single external provider in controllers.
+- Store route geometry as the source of truth for place coordinates.

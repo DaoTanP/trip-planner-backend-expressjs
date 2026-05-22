@@ -1,7 +1,8 @@
 import type { Locale } from '@/common/localization/locales.js';
 
 const enMessages = {
-  'emails.COMMENT_MENTION.html': '<p>{actorName} mentioned you in {tripTitle}.</p><p>{commentPreview}</p>',
+  'emails.COMMENT_MENTION.html':
+    '<p>{actorName} mentioned you in {tripTitle}.</p><p>{commentPreview}</p>',
   'emails.COMMENT_MENTION.subject': '{actorName} mentioned you',
   'emails.COMMENT_MENTION.text': '{actorName} mentioned you in {tripTitle}. {commentPreview}',
   'emails.ITINERARY_UPDATE.html': '<p>{tripTitle} was updated.</p><p>{summary}</p>',
@@ -54,10 +55,13 @@ const enMessages = {
   'notifications.TRIP_INVITE.title': 'Trip invite',
 
   'resources.activity': 'Activity',
+  'resources.itineraryItem': 'Itinerary item',
   'resources.itineraryDay': 'Itinerary day',
   'resources.notification': 'Notification',
+  'resources.place': 'Place',
   'resources.resource': 'Resource',
   'resources.trip': 'Trip',
+  'resources.tripNote': 'Trip note',
   'resources.user': 'User',
 
   'validation.custom.invalid': 'Invalid input',
@@ -98,7 +102,8 @@ export type MessageKey = keyof typeof enMessages;
 export type ResourceMessageKey = Extract<MessageKey, `resources.${string}`>;
 
 const _legacyEsMessages: Partial<Record<MessageKey, string>> = {
-  'emails.COMMENT_MENTION.html': '<p>{actorName} te menciono en {tripTitle}.</p><p>{commentPreview}</p>',
+  'emails.COMMENT_MENTION.html':
+    '<p>{actorName} te menciono en {tripTitle}.</p><p>{commentPreview}</p>',
   'emails.COMMENT_MENTION.subject': '{actorName} te menciono',
   'emails.COMMENT_MENTION.text': '{actorName} te menciono en {tripTitle}. {commentPreview}',
   'emails.ITINERARY_UPDATE.html': '<p>{tripTitle} fue actualizado.</p><p>{summary}</p>',
@@ -145,10 +150,13 @@ const _legacyEsMessages: Partial<Record<MessageKey, string>> = {
   'notifications.TRIP_INVITE.title': 'Invitacion de viaje',
 
   'resources.activity': 'Actividad',
+  'resources.itineraryItem': 'Elemento de itinerario',
   'resources.itineraryDay': 'Dia de itinerario',
   'resources.notification': 'Notificacion',
+  'resources.place': 'Lugar',
   'resources.resource': 'Recurso',
   'resources.trip': 'Viaje',
+  'resources.tripNote': 'Nota de viaje',
   'resources.user': 'Usuario',
 
   'validation.custom.invalid': 'Entrada invalida',

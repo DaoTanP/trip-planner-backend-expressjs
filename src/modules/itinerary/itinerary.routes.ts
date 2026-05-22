@@ -5,16 +5,21 @@ import { validateRequest } from '@/common/middleware/validate-request.middleware
 import { asyncHandler } from '@/common/utils/async-handler.js';
 import { itineraryController } from '@/modules/itinerary/itinerary.controller.js';
 import {
-  activityIdSchema,
-  createActivitySchema,
   createDaySchema,
+  createItineraryItemSchema,
+  dayIdSchema,
+  itineraryItemIdSchema,
   listDaysSchema,
-  updateActivitySchema
+  reorderDaysSchema,
+  reorderItineraryItemsSchema,
+  updateDaySchema,
+  updateItineraryItemSchema
 } from '@/modules/itinerary/itinerary.schemas.js';
 
 export const itineraryRouter = Router();
 
 itineraryRouter.use(authenticate);
+
 itineraryRouter.get(
   '/trips/:tripId/days',
   validateRequest(listDaysSchema),
@@ -25,18 +30,55 @@ itineraryRouter.post(
   validateRequest(createDaySchema),
   asyncHandler(itineraryController.createDay)
 );
-itineraryRouter.post(
-  '/days/:dayId/activities',
-  validateRequest(createActivitySchema),
-  asyncHandler(itineraryController.createActivity)
+itineraryRouter.patch(
+  '/trips/:tripId/days/reorder',
+  validateRequest(reorderDaysSchema),
+  asyncHandler(itineraryController.reorderDays)
 );
 itineraryRouter.patch(
-  '/activities/:activityId',
-  validateRequest(updateActivitySchema),
-  asyncHandler(itineraryController.updateActivity)
+  '/trip-days/:dayId',
+  validateRequest(updateDaySchema),
+  asyncHandler(itineraryController.updateDay)
 );
 itineraryRouter.delete(
-  '/activities/:activityId',
-  validateRequest(activityIdSchema),
-  asyncHandler(itineraryController.deleteActivity)
+  '/trip-days/:dayId',
+  validateRequest(dayIdSchema),
+  asyncHandler(itineraryController.deleteDay)
+);
+itineraryRouter.post(
+  '/trip-days/:dayId/itinerary-items',
+  validateRequest(createItineraryItemSchema),
+  asyncHandler(itineraryController.createItineraryItem)
+);
+itineraryRouter.patch(
+  '/itinerary-items/:itemId',
+  validateRequest(updateItineraryItemSchema),
+  asyncHandler(itineraryController.updateItineraryItem)
+);
+itineraryRouter.delete(
+  '/itinerary-items/:itemId',
+  validateRequest(itineraryItemIdSchema),
+  asyncHandler(itineraryController.deleteItineraryItem)
+);
+itineraryRouter.patch(
+  '/trips/:tripId/itinerary-items/reorder',
+  validateRequest(reorderItineraryItemsSchema),
+  asyncHandler(itineraryController.reorderItineraryItems)
+);
+
+// Temporary compatibility aliases for early frontend callers while the editor migrates to item naming.
+itineraryRouter.post(
+  '/days/:dayId/activities',
+  validateRequest(createItineraryItemSchema),
+  asyncHandler(itineraryController.createItineraryItem)
+);
+itineraryRouter.patch(
+  '/activities/:itemId',
+  validateRequest(updateItineraryItemSchema),
+  asyncHandler(itineraryController.updateItineraryItem)
+);
+itineraryRouter.delete(
+  '/activities/:itemId',
+  validateRequest(itineraryItemIdSchema),
+  asyncHandler(itineraryController.deleteItineraryItem)
 );
