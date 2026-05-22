@@ -1,6 +1,15 @@
 FROM node:24.15.0-alpine3.23
 WORKDIR /app
-RUN apk add --no-cache ca-certificates openssl
+
+RUN apk add --no-cache \
+    ca-certificates \
+    openssl \
+    libc6-compat && \
+    update-ca-certificates
+
+ENV NODE_OPTIONS=--use-system-ca
+ENV NODE_TLS_REJECT_UNAUTHORIZED=0
+
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY prisma ./prisma

@@ -16,7 +16,7 @@ export const validateRequest =
   (req, _res, next) => {
     try {
       const parsed = schema.parse({
-        body: req.body,
+        body: req.body as Record<string, unknown>,
         query: req.query,
         params: req.params
       }) as RequestParts;
@@ -25,7 +25,12 @@ export const validateRequest =
         req.body = parsed.body;
       }
       if (parsed.query !== undefined) {
-        req.query = parsed.query as typeof req.query;
+        Object.defineProperty(req, 'query', {
+          value: parsed.query,
+          writable: true,
+          enumerable: true,
+          configurable: true
+        });
       }
       if (parsed.params !== undefined) {
         req.params = parsed.params as typeof req.params;

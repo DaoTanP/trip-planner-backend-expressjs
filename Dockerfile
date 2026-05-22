@@ -1,6 +1,13 @@
 FROM node:24.15.0-alpine3.23 AS base
 WORKDIR /app
-RUN apk add --no-cache ca-certificates openssl
+
+RUN apk add --no-cache \
+    ca-certificates \
+    openssl \
+    libc6-compat && \
+    update-ca-certificates
+
+ENV NODE_OPTIONS=--use-system-ca
 
 FROM base AS deps
 ENV NODE_ENV=development
