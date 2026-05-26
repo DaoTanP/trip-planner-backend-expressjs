@@ -1,4 +1,4 @@
-import { PlaceSource } from '@prisma/client';
+import { PlaceProvider } from '@prisma/client';
 import { z } from 'zod';
 
 export const listPlacesSchema = z.object({
@@ -37,9 +37,12 @@ export const placeIdSchema = z.object({
 
 export const createPlaceSchema = z.object({
   body: z.object({
-    source: z.nativeEnum(PlaceSource).default(PlaceSource.MANUAL),
+    provider: z.nativeEnum(PlaceProvider).optional(),
+    providerPlaceId: z.string().trim().max(255).optional(),
+    source: z.nativeEnum(PlaceProvider).optional(),
     externalId: z.string().trim().max(255).optional(),
     name: z.string().trim().min(1).max(180),
+    address: z.string().trim().max(1000).optional(),
     formattedAddress: z.string().trim().max(1000).optional(),
     countryCode: z
       .string()
@@ -53,6 +56,7 @@ export const createPlaceSchema = z.object({
     phoneNumber: z.string().trim().max(40).optional(),
     timezone: z.string().trim().min(1).max(80).optional(),
     categories: z.array(z.string().trim().min(1).max(80)).default([]),
+    providerPayload: z.record(z.unknown()).optional(),
     sourcePayload: z.record(z.unknown()).optional(),
     metadata: z.record(z.unknown()).optional()
   })

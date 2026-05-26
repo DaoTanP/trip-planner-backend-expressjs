@@ -563,10 +563,14 @@ const secret = env.JWT_ACCESS_SECRET;
 
 ## 22. Trip Editor API Conventions
 
-- Trip detail responses must be serialized through API serializers, not returned as raw Prisma graphs.
+- Trip detail responses must stay metadata-only and be serialized through API serializers, not returned as raw Prisma graphs.
+- Itinerary items are first-class trip-scoped records. New code must use `tripId`, `placeId`, `routeSegmentId`, and `sortOrder`, not a required `dayId`.
+- Do not add hard structural `TripDay` ownership. Date/day/location grouping is presentation-only unless a future ADR explicitly changes this.
 - Reorder endpoints must run in transactions.
-- Reorder services must validate that every day/item in the payload belongs to the target trip.
-- Use `TripDay` and `ItineraryItem` naming in new code. Compatibility aliases may exist temporarily, but new API contracts should use editor-facing names.
-- Use `clientMutationId` on reorder APIs when a frontend interaction may also receive a future realtime event.
+- Reorder services must validate that every item in the payload belongs to the target trip.
+- Use stable spaced `sortOrder` values (`1024`, `2048`, `3072`) and avoid sequential indexes that force mass rewrites.
+- Use `clientMutationId` and row `version`/`expectedVersion` on optimistic APIs when a frontend interaction may also receive a future realtime event.
 - Keep place provider integration behind `places.service.ts` or provider adapters. Controllers must not call Google, Mapbox, or OSM directly.
+- Route geometry belongs in `RouteSegment`; do not duplicate polylines across itinerary item payloads in new code.
+- Budget data belongs in normalized `Budget`, `Expense`, and `ExpenseCategory` entities; do not add new trip-level budget JSON.
 - Add new trip editor environment variables to `.env.example`, `docker-compose.yml`, and `src/config/env.ts`.

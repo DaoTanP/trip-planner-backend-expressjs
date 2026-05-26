@@ -1,6 +1,7 @@
 import type { Prisma, TripRole } from '@prisma/client';
 
 import { AuthorizationError } from '@/common/errors/authorization-error.js';
+import { ConflictError } from '@/common/errors/conflict-error.js';
 import { NotFoundError } from '@/common/errors/not-found-error.js';
 import { parseDateOnly } from '@/common/utils/date.js';
 import type {
@@ -54,7 +55,6 @@ export class TripsService {
     if (input.startDate) data.startDate = parseDateOnly(input.startDate);
     if (input.endDate) data.endDate = parseDateOnly(input.endDate);
     if (input.preferences !== undefined) data.preferences = input.preferences;
-    if (input.budget !== undefined) data.budget = input.budget;
 
     return this.repository.create(data);
   }
@@ -85,7 +85,6 @@ export class TripsService {
     if (input.status !== undefined) data.status = input.status;
     if (input.coverImageUrl !== undefined) data.coverImageUrl = input.coverImageUrl;
     if (input.preferences !== undefined) data.preferences = input.preferences;
-    if (input.budget !== undefined) data.budget = input.budget;
     if (input.metadata !== undefined) data.metadata = input.metadata;
     data.version = { increment: 1 };
 
@@ -128,6 +127,24 @@ export class TripsService {
     return this.repository.createNote(data);
   }
 
+  async listTripNotes(userId: string, tripId: string) {
+    await this.ensureCanAccessTrip(userId, tripId);
+
+    return this.repository.listNotes(tripId);
+  }
+
+  async listCollaborators(userId: string, tripId: string) {
+    await this.ensureCanAccessTrip(userId, tripId);
+
+    return this.repository.listCollaborators(tripId);
+  }
+
+  async getExpenses(userId: string, tripId: string) {
+    await this.ensureCanAccessTrip(userId, tripId);
+
+    return this.repository.getExpenses(tripId);
+  }
+
   async updateTripNote(userId: string, noteId: string, input: UpdateTripNoteInput) {
     const access = await this.repository.findNoteTripId(noteId);
     if (!access) {
@@ -135,6 +152,10 @@ export class TripsService {
     }
 
     await this.ensureCanEditTrip(userId, access.tripId);
+
+    if (input.expectedVersion !== undefined && input.expectedVersion !== access.version) {
+      throw new ConflictError('Trip note version conflict');
+    }
 
     const data: Prisma.TripNoteUpdateInput = {};
     if (input.title !== undefined) data.title = input.title;

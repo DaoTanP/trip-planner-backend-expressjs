@@ -1,22 +1,17 @@
 import type { Request, Response } from 'express';
 
-import { serializeItineraryItem, serializeTripDay } from '@/api/serializers/trip.serializer.js';
+import { serializeItineraryItem, serializePlace } from '@/api/serializers/trip.serializer.js';
 import { AuthError } from '@/common/errors/auth-error.js';
 import { sendCreated, sendNoContent, sendSuccess } from '@/common/utils/response.js';
 import { itineraryService, type ItineraryService } from '@/modules/itinerary/itinerary.service.js';
 import type {
-  CreateDayInput,
-  CreateDayParams,
   CreateItineraryItemInput,
-  CreateItineraryItemParams,
-  DayIdParams,
+  CreateLegacyDayItineraryItemParams,
+  CreateTripItineraryItemParams,
   ItineraryItemIdParams,
-  ListDaysParams,
-  ReorderDaysInput,
-  ReorderDaysParams,
+  ListItineraryParams,
   ReorderItineraryItemsInput,
   ReorderItineraryItemsParams,
-  UpdateDayInput,
   UpdateItineraryItemInput
 } from '@/modules/itinerary/itinerary.schemas.js';
 
@@ -31,47 +26,44 @@ const requireUserId = (req: { user?: Request['user'] }): string => {
 export class ItineraryController {
   constructor(private readonly service: ItineraryService = itineraryService) {}
 
-  listDays = async (req: Request<ListDaysParams>, res: Response) => {
-    const days = await this.service.listDays(requireUserId(req), req.params.tripId);
-    return sendSuccess(res, { days: days.map(serializeTripDay) });
+  listItems = async (req: Request<ListItineraryParams>, res: Response) => {
+    const items = await this.service.listItems(requireUserId(req), req.params.tripId);
+    return sendSuccess(res, { items: items.map(serializeItineraryItem) });
   };
 
-  createDay = async (req: Request<CreateDayParams, unknown, CreateDayInput>, res: Response) => {
-    const day = await this.service.createDay(requireUserId(req), req.params.tripId, req.body);
-    return sendCreated(res, { day: serializeTripDay(day) });
+  listPlaces = async (req: Request<ListItineraryParams>, res: Response) => {
+    const places = await this.service.listPlacesForTrip(requireUserId(req), req.params.tripId);
+    return sendSuccess(res, { places: places.map(serializePlace) });
   };
 
-  updateDay = async (req: Request<DayIdParams, unknown, UpdateDayInput>, res: Response) => {
-    const day = await this.service.updateDay(requireUserId(req), req.params.dayId, req.body);
-    return sendSuccess(res, { day: serializeTripDay(day) });
-  };
-
-  deleteDay = async (req: Request<DayIdParams>, res: Response) => {
-    await this.service.deleteDay(requireUserId(req), req.params.dayId);
-    return sendNoContent(res);
-  };
-
-  reorderDays = async (
-    req: Request<ReorderDaysParams, unknown, ReorderDaysInput>,
-    res: Response
-  ) => {
-    const days = await this.service.reorderDays(requireUserId(req), req.params.tripId, req.body);
-    return sendSuccess(res, {
-      days: days.map(serializeTripDay),
-      ...(req.body.clientMutationId ? { clientMutationId: req.body.clientMutationId } : {})
-    });
-  };
-
-  createItineraryItem = async (
-    req: Request<CreateItineraryItemParams, unknown, CreateItineraryItemInput>,
+  createTripItineraryItem = async (
+    req: Request<CreateTripItineraryItemParams, unknown, CreateItineraryItemInput>,
     res: Response
   ) => {
     const item = await this.service.createItineraryItem(
       requireUserId(req),
+      req.params.tripId,
+      req.body
+    );
+    return sendCreated(res, {
+      item: serializeItineraryItem(item),
+      ...(req.body.clientMutationId ? { clientMutationId: req.body.clientMutationId } : {})
+    });
+  };
+
+  createLegacyDayItineraryItem = async (
+    req: Request<CreateLegacyDayItineraryItemParams, unknown, CreateItineraryItemInput>,
+    res: Response
+  ) => {
+    const item = await this.service.createItineraryItemForLegacyDay(
+      requireUserId(req),
       req.params.dayId,
       req.body
     );
-    return sendCreated(res, { item: serializeItineraryItem(item) });
+    return sendCreated(res, {
+      item: serializeItineraryItem(item),
+      ...(req.body.clientMutationId ? { clientMutationId: req.body.clientMutationId } : {})
+    });
   };
 
   updateItineraryItem = async (
@@ -83,7 +75,10 @@ export class ItineraryController {
       req.params.itemId,
       req.body
     );
-    return sendSuccess(res, { item: serializeItineraryItem(item) });
+    return sendSuccess(res, {
+      item: serializeItineraryItem(item),
+      ...(req.body.clientMutationId ? { clientMutationId: req.body.clientMutationId } : {})
+    });
   };
 
   deleteItineraryItem = async (req: Request<ItineraryItemIdParams>, res: Response) => {
@@ -95,13 +90,13 @@ export class ItineraryController {
     req: Request<ReorderItineraryItemsParams, unknown, ReorderItineraryItemsInput>,
     res: Response
   ) => {
-    const days = await this.service.reorderItineraryItems(
+    const items = await this.service.reorderItineraryItems(
       requireUserId(req),
       req.params.tripId,
       req.body
     );
     return sendSuccess(res, {
-      days: days.map(serializeTripDay),
+      items: items.map(serializeItineraryItem),
       ...(req.body.clientMutationId ? { clientMutationId: req.body.clientMutationId } : {})
     });
   };

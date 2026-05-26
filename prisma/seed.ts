@@ -17,6 +17,27 @@ async function main() {
     }
   });
 
+  const oldQuarter = await prisma.place.upsert({
+    where: {
+      provider_providerPlaceId: {
+        provider: 'MANUAL',
+        providerPlaceId: 'seed:old-quarter'
+      }
+    },
+    update: {},
+    create: {
+      provider: 'MANUAL',
+      providerPlaceId: 'seed:old-quarter',
+      name: 'Old Quarter',
+      formattedAddress: 'Hoan Kiem, Hanoi, Vietnam',
+      countryCode: 'VN',
+      latitude: 21.034,
+      longitude: 105.852,
+      timezone: 'Asia/Bangkok',
+      categories: ['neighborhood']
+    }
+  });
+
   await prisma.trip.upsert({
     where: { id: '00000000-0000-0000-0000-000000000001' },
     update: {},
@@ -46,21 +67,14 @@ async function main() {
           }
         ]
       },
-      days: {
+      itineraryItems: {
         create: [
           {
-            date: new Date('2026-06-01'),
-            title: 'Arrival in Hanoi',
-            order: 1,
-            items: {
-              create: [
-                {
-                  title: 'Old Quarter walk',
-                  timezone: 'Asia/Bangkok',
-                  order: 1
-                }
-              ]
-            }
+            placeId: oldQuarter.id,
+            type: 'PLACE',
+            title: 'Old Quarter walk',
+            timezone: 'Asia/Bangkok',
+            sortOrder: 1024
           }
         ]
       }

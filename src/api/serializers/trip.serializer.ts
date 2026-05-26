@@ -1,8 +1,13 @@
 import type {
+  BudgetDto,
+  ExpenseCategoryDto,
+  ExpenseDto,
   ItineraryItemDto,
   PlaceDto,
-  TripDayDto,
+  RouteSegmentDto,
+  TripCollaboratorDto,
   TripDetailDto,
+  TripExpensesDto,
   TripNoteDto,
   TripSummaryDto
 } from '@/api/contracts/index.js';
@@ -12,9 +17,10 @@ type JsonRecord = Record<string, unknown> | null;
 
 type PlaceRecord = {
   id: string;
-  source: PlaceDto['source'];
-  externalId: string | null;
+  provider: PlaceDto['provider'];
+  providerPlaceId: string | null;
   name: string;
+  address?: string | null;
   formattedAddress: string | null;
   countryCode: string | null;
   latitude: DecimalLike;
@@ -30,41 +36,41 @@ type PlaceRecord = {
 
 type ItineraryItemRecord = {
   id: string;
-  dayId: string;
+  tripId: string;
   placeId: string | null;
+  routeSegmentId?: string | null;
+  type: ItineraryItemDto['type'];
   title: string;
   description: string | null;
+  timezone: string;
   startTime: Date | string | null;
   endTime: Date | string | null;
-  timezone: string;
+  isFlexibleTime: boolean;
+  isAllDay: boolean;
+  sortOrder: number;
   status: ItineraryItemDto['status'];
   cost: DecimalLike;
   currency: string | null;
   durationMinutes?: number | null;
-  travelMode?: string | null;
-  travelTimeMinutes?: number | null;
-  routePolyline?: string | null;
   bookingInfo?: unknown;
   metadata?: unknown;
-  order: number;
   version?: number;
-  place?: PlaceRecord | null;
   createdAt: Date | string;
   updatedAt: Date | string;
+  deletedAt?: Date | string | null;
 };
 
-type TripDayRecord = {
+type RouteSegmentRecord = {
   id: string;
-  tripId: string;
-  date: Date | string;
-  title: string | null;
-  notes: string | null;
-  order: number;
-  weatherSnapshot?: unknown;
-  version?: number;
-  items?: ItineraryItemRecord[];
+  tripId: string | null;
+  fromPlaceId: string;
+  toPlaceId: string;
+  provider: RouteSegmentDto['provider'];
+  polyline: string;
+  distanceMeters: number | null;
+  durationSeconds: number | null;
+  metadata?: unknown;
   createdAt: Date | string;
-  updatedAt: Date | string;
 };
 
 type TripNoteRecord = {
@@ -97,7 +103,9 @@ type TripSummaryRecord = {
   destinations?: Array<{ name: string }>;
   _count?: {
     collaborators?: number;
-    days?: number;
+    itineraryItems?: number;
+    notes?: number;
+    routeSegments?: number;
   };
 };
 
@@ -108,21 +116,55 @@ type TripDetailRecord = TripSummaryRecord & {
     email: string;
   };
   preferences?: unknown;
-  budget?: unknown;
   metadata?: unknown;
-  collaborators?: Array<{
-    id: string;
-    role: 'OWNER' | 'EDITOR' | 'VIEWER';
-    acceptedAt: Date | string | null;
-    user: {
-      id: string;
-      name: string;
-      email: string;
-      avatarUrl: string | null;
-    } | null;
-  }>;
-  days?: TripDayRecord[];
-  notes?: TripNoteRecord[];
+};
+
+type CollaboratorRecord = {
+  id: string;
+  role: TripCollaboratorDto['role'];
+  acceptedAt: Date | string | null;
+  user: TripCollaboratorDto['user'];
+};
+
+type BudgetRecord = {
+  id: string;
+  tripId: string;
+  currency: string;
+  totalLimit: DecimalLike;
+  metadata?: unknown;
+  version?: number;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+};
+
+type ExpenseCategoryRecord = {
+  id: string;
+  tripId: string;
+  name: string;
+  color: string | null;
+  sortOrder: number;
+  metadata?: unknown;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+};
+
+type ExpenseRecord = {
+  id: string;
+  tripId: string;
+  budgetId: string | null;
+  categoryId: string | null;
+  itineraryItemId: string | null;
+  title: string;
+  amount: DecimalLike;
+  currency: string;
+  paidByUserId: string | null;
+  spentAt: Date | string | null;
+  notes: string | null;
+  metadata?: unknown;
+  version?: number;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  deletedAt?: Date | string | null;
 };
 
 const toDateOnly = (value: Date | string | null): string | null => {
@@ -171,9 +213,12 @@ const toJsonRecord = (value: unknown): JsonRecord => {
 
 export const serializePlace = (place: PlaceRecord): PlaceDto => ({
   id: place.id,
-  source: place.source,
-  externalId: place.externalId,
+  provider: place.provider,
+  providerPlaceId: place.providerPlaceId,
+  source: place.provider,
+  externalId: place.providerPlaceId,
   name: place.name,
+  address: place.address ?? null,
   formattedAddress: place.formattedAddress,
   countryCode: place.countryCode,
   latitude: toNumber(place.latitude),
@@ -189,41 +234,41 @@ export const serializePlace = (place: PlaceRecord): PlaceDto => ({
 
 export const serializeItineraryItem = (item: ItineraryItemRecord): ItineraryItemDto => ({
   id: item.id,
-  dayId: item.dayId,
+  tripId: item.tripId,
   placeId: item.placeId,
+  type: item.type,
   title: item.title,
   description: item.description,
+  timezone: item.timezone,
   startTime: toIsoString(item.startTime),
   endTime: toIsoString(item.endTime),
-  timezone: item.timezone,
+  isFlexibleTime: item.isFlexibleTime,
+  isAllDay: item.isAllDay,
+  sortOrder: item.sortOrder,
+  routeSegmentId: item.routeSegmentId ?? null,
   status: item.status,
   cost: toNumber(item.cost),
   currency: item.currency,
   durationMinutes: item.durationMinutes ?? null,
-  travelMode: item.travelMode ?? null,
-  travelTimeMinutes: item.travelTimeMinutes ?? null,
-  routePolyline: item.routePolyline ?? null,
   bookingInfo: toJsonRecord(item.bookingInfo),
   metadata: toJsonRecord(item.metadata),
-  order: item.order,
   version: item.version ?? 1,
-  place: item.place ? serializePlace(item.place) : null,
   createdAt: toIsoString(item.createdAt) ?? '',
-  updatedAt: toIsoString(item.updatedAt) ?? ''
+  updatedAt: toIsoString(item.updatedAt) ?? '',
+  deletedAt: toIsoString(item.deletedAt ?? null)
 });
 
-export const serializeTripDay = (day: TripDayRecord): TripDayDto => ({
-  id: day.id,
-  tripId: day.tripId,
-  date: toDateOnly(day.date) ?? '',
-  title: day.title,
-  notes: day.notes,
-  order: day.order,
-  weatherSnapshot: toJsonRecord(day.weatherSnapshot),
-  version: day.version ?? 1,
-  items: day.items?.map(serializeItineraryItem) ?? [],
-  createdAt: toIsoString(day.createdAt) ?? '',
-  updatedAt: toIsoString(day.updatedAt) ?? ''
+export const serializeRouteSegment = (route: RouteSegmentRecord): RouteSegmentDto => ({
+  id: route.id,
+  tripId: route.tripId,
+  fromPlaceId: route.fromPlaceId,
+  toPlaceId: route.toPlaceId,
+  provider: route.provider,
+  polyline: route.polyline,
+  distanceMeters: route.distanceMeters,
+  durationSeconds: route.durationSeconds,
+  metadata: toJsonRecord(route.metadata),
+  createdAt: toIsoString(route.createdAt) ?? ''
 });
 
 export const serializeTripNote = (note: TripNoteRecord): TripNoteDto => ({
@@ -252,45 +297,77 @@ export const serializeTripSummary = (trip: TripSummaryRecord): TripSummaryDto =>
   coverImageUrl: trip.coverImageUrl,
   destinationNames: trip.destinations?.map((destination) => destination.name) ?? [],
   collaboratorCount: trip._count?.collaborators ?? 0,
-  itineraryDayCount: trip._count?.days ?? 0,
+  itineraryItemCount: trip._count?.itineraryItems ?? 0,
+  noteCount: trip._count?.notes ?? 0,
+  routeSegmentCount: trip._count?.routeSegments ?? 0,
   version: trip.version ?? 1,
   createdAt: toIsoString(trip.createdAt) ?? '',
   updatedAt: toIsoString(trip.updatedAt) ?? ''
 });
 
-export const serializeTripDetail = (trip: TripDetailRecord): TripDetailDto => {
-  const days = trip.days?.map(serializeTripDay) ?? [];
-  const placeMap = new Map<string, PlaceDto>();
+export const serializeTripDetail = (trip: TripDetailRecord): TripDetailDto => ({
+  ...serializeTripSummary(trip),
+  owner: trip.owner,
+  preferences: toJsonRecord(trip.preferences),
+  metadata: toJsonRecord(trip.metadata)
+});
 
-  for (const day of days) {
-    for (const item of day.items) {
-      if (item.place) {
-        placeMap.set(item.place.id, item.place);
-      }
-    }
-  }
+export const serializeTripCollaborator = (
+  collaborator: CollaboratorRecord
+): TripCollaboratorDto => ({
+  id: collaborator.id,
+  role: collaborator.role,
+  acceptedAt: toIsoString(collaborator.acceptedAt),
+  user: collaborator.user
+});
 
-  return {
-    ...serializeTripSummary({
-      ...trip,
-      _count: {
-        collaborators: trip.collaborators?.length ?? trip._count?.collaborators ?? 0,
-        days: trip.days?.length ?? trip._count?.days ?? 0
-      }
-    }),
-    owner: trip.owner,
-    preferences: toJsonRecord(trip.preferences),
-    budget: toJsonRecord(trip.budget),
-    metadata: toJsonRecord(trip.metadata),
-    collaborators:
-      trip.collaborators?.map((collaborator) => ({
-        id: collaborator.id,
-        role: collaborator.role,
-        acceptedAt: toIsoString(collaborator.acceptedAt),
-        user: collaborator.user
-      })) ?? [],
-    days,
-    notes: trip.notes?.map(serializeTripNote) ?? [],
-    places: Array.from(placeMap.values())
-  };
-};
+export const serializeBudget = (budget: BudgetRecord): BudgetDto => ({
+  id: budget.id,
+  tripId: budget.tripId,
+  currency: budget.currency,
+  totalLimit: toNumber(budget.totalLimit),
+  metadata: toJsonRecord(budget.metadata),
+  version: budget.version ?? 1,
+  createdAt: toIsoString(budget.createdAt) ?? '',
+  updatedAt: toIsoString(budget.updatedAt) ?? ''
+});
+
+export const serializeExpenseCategory = (category: ExpenseCategoryRecord): ExpenseCategoryDto => ({
+  id: category.id,
+  tripId: category.tripId,
+  name: category.name,
+  color: category.color,
+  sortOrder: category.sortOrder,
+  metadata: toJsonRecord(category.metadata),
+  createdAt: toIsoString(category.createdAt) ?? '',
+  updatedAt: toIsoString(category.updatedAt) ?? ''
+});
+
+export const serializeExpense = (expense: ExpenseRecord): ExpenseDto => ({
+  id: expense.id,
+  tripId: expense.tripId,
+  budgetId: expense.budgetId,
+  categoryId: expense.categoryId,
+  itineraryItemId: expense.itineraryItemId,
+  title: expense.title,
+  amount: toNumber(expense.amount) ?? 0,
+  currency: expense.currency,
+  paidByUserId: expense.paidByUserId,
+  spentAt: toIsoString(expense.spentAt),
+  notes: expense.notes,
+  metadata: toJsonRecord(expense.metadata),
+  version: expense.version ?? 1,
+  createdAt: toIsoString(expense.createdAt) ?? '',
+  updatedAt: toIsoString(expense.updatedAt) ?? '',
+  deletedAt: toIsoString(expense.deletedAt ?? null)
+});
+
+export const serializeTripExpenses = (input: {
+  budget: BudgetRecord | null;
+  categories: ExpenseCategoryRecord[];
+  expenses: ExpenseRecord[];
+}): TripExpensesDto => ({
+  budget: input.budget ? serializeBudget(input.budget) : null,
+  categories: input.categories.map(serializeExpenseCategory),
+  expenses: input.expenses.map(serializeExpense)
+});

@@ -36,8 +36,7 @@ export const createTripSchema = z.object({
       endDate: dateOnlySchema.optional(),
       timezone: timezoneSchema.default(DEFAULT_TIMEZONE),
       visibility: z.nativeEnum(TripVisibility).default(TripVisibility.PRIVATE),
-      preferences: z.record(z.unknown()).optional(),
-      budget: z.record(z.unknown()).optional()
+      preferences: z.record(z.unknown()).optional()
     })
     .refine((value) => !value.startDate || !value.endDate || value.startDate <= value.endDate, {
       message: 'validation.dateRange.startBeforeEnd'
@@ -59,7 +58,6 @@ export const updateTripSchema = z.object({
       status: z.nativeEnum(TripStatus).optional(),
       coverImageUrl: z.string().url().nullable().optional(),
       preferences: z.record(z.unknown()).nullable().optional(),
-      budget: z.record(z.unknown()).nullable().optional(),
       metadata: z.record(z.unknown()).nullable().optional()
     })
     .refine((value) => !value.startDate || !value.endDate || value.startDate <= value.endDate, {
@@ -76,7 +74,8 @@ export const createTripNoteSchema = z.object({
     body: z.string().trim().min(1).max(10000),
     order: z.number().int().min(0).default(0),
     pinned: z.boolean().default(false),
-    metadata: z.record(z.unknown()).optional()
+    metadata: z.record(z.unknown()).optional(),
+    clientMutationId: z.string().trim().max(120).optional()
   })
 });
 
@@ -89,7 +88,9 @@ export const updateTripNoteSchema = z.object({
     body: z.string().trim().min(1).max(10000).optional(),
     order: z.number().int().min(0).optional(),
     pinned: z.boolean().optional(),
-    metadata: z.record(z.unknown()).nullable().optional()
+    metadata: z.record(z.unknown()).nullable().optional(),
+    expectedVersion: z.number().int().positive().optional(),
+    clientMutationId: z.string().trim().max(120).optional()
   })
 });
 

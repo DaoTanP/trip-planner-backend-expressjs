@@ -2,8 +2,10 @@ import type { Request, Response } from 'express';
 import type { ParamsDictionary } from 'express-serve-static-core';
 
 import {
+  serializeTripCollaborator,
   serializeTripDetail,
   serializeTripNote,
+  serializeTripExpenses,
   serializeTripSummary
 } from '@/api/serializers/trip.serializer.js';
 import { AuthError } from '@/common/errors/auth-error.js';
@@ -64,7 +66,28 @@ export class TripsController {
     res: Response
   ) => {
     const note = await this.service.createTripNote(requireUserId(req), req.params.tripId, req.body);
-    return sendCreated(res, { note: serializeTripNote(note) });
+    return sendCreated(res, {
+      note: serializeTripNote(note),
+      ...(req.body.clientMutationId ? { clientMutationId: req.body.clientMutationId } : {})
+    });
+  };
+
+  listNotes = async (req: Request<TripIdParams>, res: Response) => {
+    const notes = await this.service.listTripNotes(requireUserId(req), req.params.tripId);
+    return sendSuccess(res, { notes: notes.map(serializeTripNote) });
+  };
+
+  listCollaborators = async (req: Request<TripIdParams>, res: Response) => {
+    const collaborators = await this.service.listCollaborators(
+      requireUserId(req),
+      req.params.tripId
+    );
+    return sendSuccess(res, { collaborators: collaborators.map(serializeTripCollaborator) });
+  };
+
+  getExpenses = async (req: Request<TripIdParams>, res: Response) => {
+    const expenses = await this.service.getExpenses(requireUserId(req), req.params.tripId);
+    return sendSuccess(res, serializeTripExpenses(expenses));
   };
 
   updateNote = async (
@@ -72,7 +95,10 @@ export class TripsController {
     res: Response
   ) => {
     const note = await this.service.updateTripNote(requireUserId(req), req.params.noteId, req.body);
-    return sendSuccess(res, { note: serializeTripNote(note) });
+    return sendSuccess(res, {
+      note: serializeTripNote(note),
+      ...(req.body.clientMutationId ? { clientMutationId: req.body.clientMutationId } : {})
+    });
   };
 
   deleteNote = async (req: Request<TripNoteIdParams>, res: Response) => {

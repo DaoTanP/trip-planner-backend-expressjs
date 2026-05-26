@@ -38,7 +38,13 @@ export class TripsRepository {
           _count: {
             select: {
               collaborators: true,
-              days: true
+              itineraryItems: {
+                where: {
+                  deletedAt: null
+                }
+              },
+              notes: true,
+              routeSegments: true
             }
           }
         }
@@ -81,19 +87,17 @@ export class TripsRepository {
             }
           }
         },
-        days: {
-          orderBy: { order: 'asc' },
-          include: {
-            items: {
-              orderBy: { order: 'asc' },
-              include: {
-                place: true
+        _count: {
+          select: {
+            collaborators: true,
+            itineraryItems: {
+              where: {
+                deletedAt: null
               }
-            }
+            },
+            notes: true,
+            routeSegments: true
           }
-        },
-        notes: {
-          orderBy: [{ pinned: 'desc' }, { order: 'asc' }, { createdAt: 'asc' }]
         }
       }
     });
@@ -144,10 +148,57 @@ export class TripsRepository {
     });
   }
 
-  findNoteTripId(noteId: string): Promise<{ tripId: string } | null> {
+  listNotes(tripId: string) {
+    return prisma.tripNote.findMany({
+      where: { tripId },
+      orderBy: [{ pinned: 'desc' }, { order: 'asc' }, { createdAt: 'asc' }]
+    });
+  }
+
+  listCollaborators(tripId: string) {
+    return prisma.tripCollaborator.findMany({
+      where: { tripId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            avatarUrl: true
+          }
+        }
+      },
+      orderBy: [{ role: 'asc' }, { createdAt: 'asc' }]
+    });
+  }
+
+  getExpenses(tripId: string) {
+    return prisma.$transaction(async (tx) => {
+      const [budget, categories, expenses] = await Promise.all([
+        tx.budget.findUnique({
+          where: { tripId }
+        }),
+        tx.expenseCategory.findMany({
+          where: { tripId },
+          orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }]
+        }),
+        tx.expense.findMany({
+          where: {
+            tripId,
+            deletedAt: null
+          },
+          orderBy: [{ spentAt: 'asc' }, { createdAt: 'asc' }]
+        })
+      ]);
+
+      return { budget, categories, expenses };
+    });
+  }
+
+  findNoteTripId(noteId: string): Promise<{ tripId: string; version: number } | null> {
     return prisma.tripNote.findUnique({
       where: { id: noteId },
-      select: { tripId: true }
+      select: { tripId: true, version: true }
     });
   }
 

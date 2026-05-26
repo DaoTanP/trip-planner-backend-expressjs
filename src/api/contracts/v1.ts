@@ -128,7 +128,18 @@ export type RefreshSessionResponseDto = {
 
 export type TripStatusDto = 'DRAFT' | 'PLANNED' | 'ACTIVE' | 'COMPLETED' | 'ARCHIVED';
 export type TripVisibilityDto = 'PRIVATE' | 'SHARED' | 'PUBLIC';
-export type PlaceSourceDto = 'MANUAL' | 'GOOGLE' | 'MAPBOX' | 'OSM' | 'INTERNAL';
+export type PlaceProviderDto = 'MANUAL' | 'GOOGLE' | 'MAPBOX' | 'OSM' | 'INTERNAL';
+export type PlaceSourceDto = PlaceProviderDto;
+export type RouteProviderDto = 'GOOGLE' | 'MAPBOX' | 'OSM' | 'INTERNAL';
+export type ItineraryItemTypeDto =
+  | 'ACTIVITY'
+  | 'PLACE'
+  | 'LODGING'
+  | 'TRANSPORT'
+  | 'FOOD'
+  | 'NOTE'
+  | 'TASK'
+  | 'CUSTOM';
 export type ItineraryItemStatusDto = 'PLANNED' | 'BOOKED' | 'COMPLETED' | 'CANCELLED';
 
 export type TripSummaryDto = {
@@ -143,7 +154,9 @@ export type TripSummaryDto = {
   coverImageUrl: string | null;
   destinationNames: string[];
   collaboratorCount: number;
-  itineraryDayCount: number;
+  itineraryItemCount: number;
+  noteCount: number;
+  routeSegmentCount: number;
   version: number;
   createdAt: string;
   updatedAt: string;
@@ -151,77 +164,6 @@ export type TripSummaryDto = {
 
 export type TripResourceResponseDto = {
   trip: TripSummaryDto;
-};
-
-export type PlaceDto = {
-  id: string;
-  source: PlaceSourceDto;
-  externalId: string | null;
-  name: string;
-  formattedAddress: string | null;
-  countryCode: string | null;
-  latitude: number | null;
-  longitude: number | null;
-  websiteUrl: string | null;
-  phoneNumber: string | null;
-  timezone: string | null;
-  categories: string[];
-  metadata: Record<string, unknown> | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type ItineraryItemDto = {
-  id: string;
-  dayId: string;
-  placeId: string | null;
-  title: string;
-  description: string | null;
-  startTime: string | null;
-  endTime: string | null;
-  timezone: string;
-  status: ItineraryItemStatusDto;
-  cost: number | null;
-  currency: string | null;
-  durationMinutes: number | null;
-  travelMode: string | null;
-  travelTimeMinutes: number | null;
-  routePolyline: string | null;
-  bookingInfo: Record<string, unknown> | null;
-  metadata: Record<string, unknown> | null;
-  order: number;
-  version: number;
-  place: PlaceDto | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type TripDayDto = {
-  id: string;
-  tripId: string;
-  date: string;
-  title: string | null;
-  notes: string | null;
-  order: number;
-  weatherSnapshot: Record<string, unknown> | null;
-  version: number;
-  items: ItineraryItemDto[];
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type TripNoteDto = {
-  id: string;
-  tripId: string;
-  authorId: string | null;
-  title: string | null;
-  body: string;
-  order: number;
-  pinned: boolean;
-  metadata: Record<string, unknown> | null;
-  version: number;
-  createdAt: string;
-  updatedAt: string;
 };
 
 export type TripCollaboratorDto = {
@@ -243,16 +185,132 @@ export type TripDetailDto = TripSummaryDto & {
     email: string;
   };
   preferences: Record<string, unknown> | null;
-  budget: Record<string, unknown> | null;
   metadata: Record<string, unknown> | null;
-  collaborators: TripCollaboratorDto[];
-  days: TripDayDto[];
-  notes: TripNoteDto[];
-  places: PlaceDto[];
 };
 
 export type TripDetailResourceResponseDto = {
   trip: TripDetailDto;
+};
+
+export type PlaceDto = {
+  id: string;
+  provider: PlaceProviderDto;
+  providerPlaceId: string | null;
+  source: PlaceSourceDto;
+  externalId: string | null;
+  name: string;
+  address: string | null;
+  formattedAddress: string | null;
+  countryCode: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  websiteUrl: string | null;
+  phoneNumber: string | null;
+  timezone: string | null;
+  categories: string[];
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ItineraryItemDto = {
+  id: string;
+  tripId: string;
+  placeId: string | null;
+  type: ItineraryItemTypeDto;
+  title: string;
+  description: string | null;
+  timezone: string;
+  startTime: string | null;
+  endTime: string | null;
+  isFlexibleTime: boolean;
+  isAllDay: boolean;
+  sortOrder: number;
+  routeSegmentId: string | null;
+  status: ItineraryItemStatusDto;
+  cost: number | null;
+  currency: string | null;
+  durationMinutes: number | null;
+  bookingInfo: Record<string, unknown> | null;
+  metadata: Record<string, unknown> | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+};
+
+export type RouteSegmentDto = {
+  id: string;
+  tripId: string | null;
+  fromPlaceId: string;
+  toPlaceId: string;
+  provider: RouteProviderDto;
+  polyline: string;
+  distanceMeters: number | null;
+  durationSeconds: number | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+};
+
+export type TripNoteDto = {
+  id: string;
+  tripId: string;
+  authorId: string | null;
+  title: string | null;
+  body: string;
+  order: number;
+  pinned: boolean;
+  metadata: Record<string, unknown> | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type BudgetDto = {
+  id: string;
+  tripId: string;
+  currency: string;
+  totalLimit: number | null;
+  metadata: Record<string, unknown> | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ExpenseCategoryDto = {
+  id: string;
+  tripId: string;
+  name: string;
+  color: string | null;
+  sortOrder: number;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ExpenseDto = {
+  id: string;
+  tripId: string;
+  budgetId: string | null;
+  categoryId: string | null;
+  itineraryItemId: string | null;
+  title: string;
+  amount: number;
+  currency: string;
+  paidByUserId: string | null;
+  spentAt: string | null;
+  notes: string | null;
+  metadata: Record<string, unknown> | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+};
+
+export type TripExpensesDto = {
+  budget: BudgetDto | null;
+  categories: ExpenseCategoryDto[];
+  expenses: ExpenseDto[];
 };
 
 export type ListTripsQueryDto = {
@@ -269,87 +327,68 @@ export type CreateTripRequestDto = {
   timezone?: string;
   visibility?: TripVisibilityDto;
   preferences?: Record<string, unknown>;
-  budget?: Record<string, unknown>;
 };
 
 export type UpdateTripRequestDto = Partial<
-  Omit<CreateTripRequestDto, 'description' | 'startDate' | 'endDate' | 'preferences' | 'budget'> & {
+  Omit<CreateTripRequestDto, 'description' | 'startDate' | 'endDate' | 'preferences'> & {
     description: string | null;
     startDate: string | null;
     endDate: string | null;
     status: TripStatusDto;
     coverImageUrl: string | null;
     preferences: Record<string, unknown> | null;
-    budget: Record<string, unknown> | null;
     metadata: Record<string, unknown> | null;
   }
 >;
 
-export type CreateTripDayRequestDto = {
-  date: string;
-  title?: string;
-  notes?: string;
-  order?: number;
-  weatherSnapshot?: Record<string, unknown>;
-};
-
-export type UpdateTripDayRequestDto = Partial<{
-  date: string;
-  title: string | null;
-  notes: string | null;
-  order: number;
-  weatherSnapshot: Record<string, unknown> | null;
-}>;
-
-export type ReorderTripDaysRequestDto = {
-  dayIds: string[];
-  clientMutationId?: string;
-};
-
 export type CreateItineraryItemRequestDto = {
-  placeId?: string;
+  placeId?: string | null;
+  type?: ItineraryItemTypeDto;
   title: string;
   description?: string;
+  timezone?: string;
   startTime?: string;
   endTime?: string;
-  timezone?: string;
+  isFlexibleTime?: boolean;
+  isAllDay?: boolean;
+  sortOrder?: number;
+  routeSegmentId?: string | null;
   status?: ItineraryItemStatusDto;
   cost?: number;
   currency?: string;
   durationMinutes?: number;
-  travelMode?: string;
-  travelTimeMinutes?: number;
-  routePolyline?: string;
   bookingInfo?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
-  order?: number;
+  clientMutationId?: string;
 };
 
 export type UpdateItineraryItemRequestDto = Partial<{
-  dayId: string;
   placeId: string | null;
+  type: ItineraryItemTypeDto;
   title: string;
   description: string | null;
+  timezone: string;
   startTime: string | null;
   endTime: string | null;
-  timezone: string;
+  isFlexibleTime: boolean;
+  isAllDay: boolean;
+  sortOrder: number;
+  routeSegmentId: string | null;
   status: ItineraryItemStatusDto;
   cost: number | null;
   currency: string | null;
   durationMinutes: number | null;
-  travelMode: string | null;
-  travelTimeMinutes: number | null;
-  routePolyline: string | null;
   bookingInfo: Record<string, unknown> | null;
   metadata: Record<string, unknown> | null;
-  order: number;
+  expectedVersion: number;
+  clientMutationId: string;
 }>;
 
 export type ReorderItineraryItemsRequestDto = {
   updates: Array<{
     itemId: string;
-    dayId: string;
-    order: number;
+    sortOrder: number;
+    expectedVersion?: number;
   }>;
   clientMutationId?: string;
 };
@@ -360,6 +399,7 @@ export type CreateTripNoteRequestDto = {
   order?: number;
   pinned?: boolean;
   metadata?: Record<string, unknown>;
+  clientMutationId?: string;
 };
 
 export type UpdateTripNoteRequestDto = Partial<{
@@ -368,6 +408,8 @@ export type UpdateTripNoteRequestDto = Partial<{
   order: number;
   pinned: boolean;
   metadata: Record<string, unknown> | null;
+  expectedVersion: number;
+  clientMutationId: string;
 }>;
 
 export type ListPlacesQueryDto = {
@@ -382,9 +424,12 @@ export type SearchPlacesQueryDto = ListPlacesQueryDto & {
 };
 
 export type CreatePlaceRequestDto = {
+  provider?: PlaceProviderDto;
+  providerPlaceId?: string;
   source?: PlaceSourceDto;
   externalId?: string;
   name: string;
+  address?: string;
   formattedAddress?: string;
   countryCode?: string;
   latitude?: number;
@@ -393,6 +438,7 @@ export type CreatePlaceRequestDto = {
   phoneNumber?: string;
   timezone?: string;
   categories?: string[];
+  providerPayload?: Record<string, unknown>;
   sourcePayload?: Record<string, unknown>;
   metadata?: Record<string, unknown>;
 };
@@ -464,64 +510,66 @@ export type ApiV1Paths = {
       response: void;
     };
   };
-  '/trips/{tripId}/days': {
+  '/trips/{tripId}/itinerary': {
     get: {
-      response: ApiSuccessResponse<{ days: TripDayDto[] }>;
+      response: ApiSuccessResponse<{ items: ItineraryItemDto[] }>;
     };
-    post: {
-      request: CreateTripDayRequestDto;
-      response: ApiSuccessResponse<{ day: TripDayDto }>;
-    };
-  };
-  '/trips/{tripId}/days/reorder': {
-    patch: {
-      request: ReorderTripDaysRequestDto;
-      response: ApiSuccessResponse<{ days: TripDayDto[]; clientMutationId?: string }>;
-    };
-  };
-  '/trip-days/{dayId}': {
-    patch: {
-      request: UpdateTripDayRequestDto;
-      response: ApiSuccessResponse<{ day: TripDayDto }>;
-    };
-    delete: {
-      response: void;
-    };
-  };
-  '/trip-days/{dayId}/itinerary-items': {
     post: {
       request: CreateItineraryItemRequestDto;
-      response: ApiSuccessResponse<{ item: ItineraryItemDto }>;
+      response: ApiSuccessResponse<{ item: ItineraryItemDto; clientMutationId?: string }>;
+    };
+  };
+  '/trips/{tripId}/itinerary/reorder': {
+    patch: {
+      request: ReorderItineraryItemsRequestDto;
+      response: ApiSuccessResponse<{ items: ItineraryItemDto[]; clientMutationId?: string }>;
     };
   };
   '/itinerary-items/{itemId}': {
     patch: {
       request: UpdateItineraryItemRequestDto;
-      response: ApiSuccessResponse<{ item: ItineraryItemDto }>;
+      response: ApiSuccessResponse<{ item: ItineraryItemDto; clientMutationId?: string }>;
     };
     delete: {
       response: void;
     };
   };
-  '/trips/{tripId}/itinerary-items/reorder': {
-    patch: {
-      request: ReorderItineraryItemsRequestDto;
-      response: ApiSuccessResponse<{ days: TripDayDto[]; clientMutationId?: string }>;
+  '/trips/{tripId}/places': {
+    get: {
+      response: ApiSuccessResponse<{ places: PlaceDto[] }>;
     };
   };
   '/trips/{tripId}/notes': {
+    get: {
+      response: ApiSuccessResponse<{ notes: TripNoteDto[] }>;
+    };
     post: {
       request: CreateTripNoteRequestDto;
-      response: ApiSuccessResponse<{ note: TripNoteDto }>;
+      response: ApiSuccessResponse<{ note: TripNoteDto; clientMutationId?: string }>;
     };
   };
   '/trip-notes/{noteId}': {
     patch: {
       request: UpdateTripNoteRequestDto;
-      response: ApiSuccessResponse<{ note: TripNoteDto }>;
+      response: ApiSuccessResponse<{ note: TripNoteDto; clientMutationId?: string }>;
     };
     delete: {
       response: void;
+    };
+  };
+  '/trips/{tripId}/routes': {
+    get: {
+      response: ApiSuccessResponse<{ routes: RouteSegmentDto[] }>;
+    };
+  };
+  '/trips/{tripId}/collaborators': {
+    get: {
+      response: ApiSuccessResponse<{ collaborators: TripCollaboratorDto[] }>;
+    };
+  };
+  '/trips/{tripId}/expenses': {
+    get: {
+      response: ApiSuccessResponse<TripExpensesDto>;
     };
   };
   '/places': {

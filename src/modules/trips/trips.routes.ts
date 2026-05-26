@@ -8,9 +8,7 @@ import {
   createTripNoteSchema,
   createTripSchema,
   listTripsSchema,
-  tripNoteIdSchema,
   tripIdSchema,
-  updateTripNoteSchema,
   updateTripSchema
 } from '@/modules/trips/trips.schemas.js';
 
@@ -26,18 +24,23 @@ tripsRouter.patch(
   asyncHandler(tripsController.update)
 );
 tripsRouter.delete('/:tripId', validateRequest(tripIdSchema), asyncHandler(tripsController.delete));
+tripsRouter.get(
+  '/:tripId/notes',
+  validateRequest(tripIdSchema),
+  asyncHandler(tripsController.listNotes)
+);
 tripsRouter.post(
   '/:tripId/notes',
   validateRequest(createTripNoteSchema),
   asyncHandler(tripsController.createNote)
 );
-tripsRouter.patch(
-  '/notes/:noteId',
-  validateRequest(updateTripNoteSchema),
-  asyncHandler(tripsController.updateNote)
+tripsRouter.get(
+  '/:tripId/collaborators',
+  validateRequest(tripIdSchema),
+  asyncHandler(tripsController.listCollaborators)
 );
-tripsRouter.delete(
-  '/notes/:noteId',
-  validateRequest(tripNoteIdSchema),
-  asyncHandler(tripsController.deleteNote)
+tripsRouter.get(
+  '/:tripId/expenses',
+  validateRequest(tripIdSchema),
+  asyncHandler(tripsController.getExpenses)
 );

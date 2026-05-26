@@ -7,8 +7,8 @@ This document defines stable business rules and domain invariants for the Trip P
 - User: a person with an account.
 - Trip: a planned travel experience owned by exactly one user.
 - Destination: a city, region, or place included in a trip.
-- Trip day: one calendar day within a trip plan.
-- Itinerary item: a planned stop, activity, reminder, booking, or note inside a trip day.
+- Itinerary item: a planned stop, activity, reminder, booking, lodging, transport leg, or flexible idea directly inside a trip timeline.
+- Presentation group: an optional UI grouping such as date, location, section, morning/evening, or custom label.
 - Trip note: free-form planning text attached to a trip.
 - Place: a reusable location record that may be attached to destinations or itinerary items.
 - Collaborator: a user or invited email with access to a trip.
@@ -24,10 +24,14 @@ Core entities:
 - Trip
 - TripCollaborator
 - Destination
-- TripDay
 - ItineraryItem
 - TripNote
+- ItineraryNote
 - Place
+- RouteSegment
+- Budget
+- Expense
+- ExpenseCategory
 - Comment
 - Notification
 - Recommendation, future
@@ -37,12 +41,13 @@ Entity relationships:
 ```text
 User owns many Trips
 Trip has many Destinations
-Trip has many TripDays
-TripDay has many ItineraryItems
+Trip has many ItineraryItems
 ItineraryItem may reference one Place
+ItineraryItem may reference one RouteSegment
 Trip has many TripNotes
+ItineraryItem has many ItineraryNotes
 Trip has many Collaborators
-Trip, TripDay, and ItineraryItem may have Comments
+Trip and ItineraryItem may have Comments
 User has many Notifications
 ```
 
@@ -110,7 +115,6 @@ Read trip               yes    yes     yes
 Update trip             yes    yes     no
 Delete trip             yes    no      no
 Manage collaborators    yes    no      no
-Create trip day         yes    yes     no
 Create itinerary item   yes    yes     no
 Update itinerary item   yes    yes     no
 Read notifications      own    own     own
@@ -144,47 +148,48 @@ Completed trip silently rewritten by AI generation
 
 ## 7. Itinerary Item Constraints
 
-- Every itinerary item must belong to exactly one trip day.
-- An itinerary item cannot exist directly under a trip without a day.
-- An itinerary item may reference a place, but manual items without a place are valid.
-- Item order is scoped to its day unless a reorder payload explicitly moves it to another day in the same trip.
+- Every itinerary item must belong directly to exactly one trip.
+- An itinerary item must not require a trip day to exist.
+- An itinerary item may reference a place, but manual/flexible items without a place are valid.
+- Item order is scoped to the trip timeline through stable spaced `sortOrder` values.
+- Presentation grouping by date, location, or custom label is computed by clients and must not become a persistence invariant.
 - Item status must reflect planning state: PLANNED, BOOKED, COMPLETED, or CANCELLED.
 - Item cost and duration values must not be negative.
-- Route metadata such as travel time, travel mode, and route polyline is optional and must not replace the place relationship.
+- Route metadata belongs in `RouteSegment` when geometry, distance, or duration is persisted. It must not replace the place relationship.
 
 Valid:
 
 ```text
-Day 1
-  Itinerary item: Museum visit, order 1024, status PLANNED
-  Itinerary item: Dinner, order 2048, placeId null
+Trip A timeline
+  Itinerary item: Museum visit, sortOrder 1024, status PLANNED
+  Itinerary item: Dinner idea, sortOrder 2048, placeId null, isFlexibleTime true
 ```
 
 Invalid:
 
 ```text
-Itinerary item without dayId
+Itinerary item without tripId
 Itinerary item cost = -10
-Itinerary item belongs to a day from another trip context
+Itinerary item moved to another trip through a reorder payload
 ```
 
 ## 8. Date/Time Constraints
 
 - Trip `startDate` must be before or equal to `endDate`.
-- Itinerary day dates should fall within the trip range when the trip has dates.
-- A trip day should be unique per trip and date.
 - Itinerary item `startTime` must be before or equal to `endTime`.
 - Store timestamps in UTC.
 - Preserve user-facing timezone on trips and itinerary items.
 - Date-only values represent local calendar dates, not instants.
 - User timezone preferences must be valid IANA timezones and default to UTC.
+- Items without `startTime` are allowed and represent unscheduled or flexible planning.
+- `isAllDay` and `isFlexibleTime` are item-level scheduling hints, not grouping boundaries.
 
 Valid:
 
 ```text
 Trip: 2026-06-01 to 2026-06-07
-Day: 2026-06-03
 Itinerary item: 09:00 to 11:00 in Asia/Bangkok
+Flexible item: Coffee options, no startTime, isFlexibleTime true
 ```
 
 Invalid:
@@ -192,7 +197,7 @@ Invalid:
 ```text
 Trip: 2026-06-07 to 2026-06-01
 Itinerary item: ends before it starts
-Day: duplicate date for same trip
+Itinerary item ends before it starts
 ```
 
 ## 9. Localization Rules
@@ -252,7 +257,7 @@ Rules:
 - AI suggestions are suggestions until accepted by a permitted user.
 - AI must not overwrite confirmed or booked itinerary items without explicit user confirmation.
 - AI output must be validated like user input.
-- AI-generated itinerary items must belong to trip days.
+- AI-generated itinerary items must belong directly to the target trip.
 - AI must respect trip date range, timezone, budget, destination, and collaborator permissions.
 - AI should preserve user-authored notes unless asked to replace them.
 - AI recommendations must be traceable as AI-generated when stored.
@@ -301,7 +306,6 @@ Business validation belongs in services when it depends on database state.
 
 ## 13. Data Consistency Rules
 
-- A trip must not contain trip days from another trip.
 - Itinerary items must not be moved across trips without explicit handling.
 - Collaborator permissions must be checked against the target trip.
 - Comments must reference a target consistent with their trip.
@@ -314,13 +318,13 @@ Invalid:
 
 ```text
 Comment tripId = Trip A and activityId = ItineraryItem from Trip B
-Itinerary item dayId points to Day from a trip the user cannot edit
+Itinerary reorder payload for Trip A contains an item from Trip B
 ```
 
 ## 14. Deletion Rules
 
 - Trip deletion is owner-only.
-- Deleting a trip deletes its trip days, itinerary items, trip notes, comments, collaborators, and trip notifications as defined by persistence rules.
+- Deleting a trip deletes its itinerary items, notes, comments, collaborators, expenses, and trip notifications as defined by persistence rules.
 - Deleting an itinerary item should not delete its place record.
 - Removing a collaborator should not delete the user account.
 - Logout revokes a refresh token, not the user account.
@@ -362,4 +366,4 @@ The domain should evolve toward:
 - place search provider normalization
 - analytics events
 
-Future features must preserve existing invariants: one trip owner, itinerary items under trip days, permissions scoped to trips, and AI output validated before persistence.
+Future features must preserve existing invariants: one trip owner, itinerary items directly under trips, permissions scoped to trips, and AI output validated before persistence.

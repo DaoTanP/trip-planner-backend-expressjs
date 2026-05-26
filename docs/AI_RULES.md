@@ -291,11 +291,13 @@ Before considering AI-generated code complete, verify:
 AI agents changing the trip editor backend must:
 
 - Keep trip editor writes behind `TripsService`, `ItineraryService`, or `PlacesService`.
-- Use `TripDay`, `ItineraryItem`, and `TripNote` names in new code.
-- Keep compatibility aliases short-lived and documented.
+- Treat `ItineraryItem` as a trip-scoped first-class entity with direct `tripId`.
+- Keep day/date/location grouping presentation-only unless a future ADR explicitly reopens the decision.
+- Keep compatibility aliases for legacy day routes short-lived and documented.
 - Validate reorder payload ownership before transactional writes.
-- Preserve `clientMutationId` fields on reorder contracts for future realtime echo suppression.
-- Serialize trip detail responses through `trip.serializer.ts`.
+- Use stable spaced `sortOrder`, row `version`, optional `expectedVersion`, and `clientMutationId` for optimistic/realtime-safe mutations.
+- Serialize trip detail responses through `trip.serializer.ts` and keep them metadata-only.
+- Return itinerary, notes, places, routes, collaborators, and expenses through granular endpoints.
 - Update `src/api/contracts/v1.ts` and sync the frontend contract after API shape changes.
 - Add provider configuration to `src/config/env.ts`, `.env.example`, and Docker compose.
 
@@ -304,5 +306,6 @@ AI agents must not:
 - Return raw Prisma trip graphs to the frontend.
 - Let websocket or future realtime handlers bypass permission checks.
 - Move itinerary items across trips.
+- Reintroduce required `dayId` ownership for itinerary items.
 - Couple place search to a single external provider in controllers.
 - Store route geometry as the source of truth for place coordinates.

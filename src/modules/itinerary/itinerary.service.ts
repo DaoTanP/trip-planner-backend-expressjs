@@ -2,29 +2,20 @@ import type { Prisma } from '@prisma/client';
 
 import { ConflictError } from '@/common/errors/conflict-error.js';
 import { NotFoundError } from '@/common/errors/not-found-error.js';
-import { parseDateOnly } from '@/common/utils/date.js';
 import {
   itineraryRepository,
   type ItineraryRepository
 } from '@/modules/itinerary/itinerary.repository.js';
 import type {
-  CreateDayInput,
   CreateItineraryItemInput,
-  ReorderDaysInput,
   ReorderItineraryItemsInput,
-  UpdateDayInput,
   UpdateItineraryItemInput
 } from '@/modules/itinerary/itinerary.schemas.js';
 import { tripsService, type TripsService } from '@/modules/trips/trips.service.js';
 
-const hasSameIds = (left: string[], right: string[]) => {
-  if (left.length !== right.length) {
-    return false;
-  }
+const orderStride = 1024;
 
-  const leftSet = new Set(left);
-  return right.every((id) => leftSet.has(id));
-};
+const hasDuplicateIds = (ids: string[]) => new Set(ids).size !== ids.length;
 
 export class ItineraryService {
   constructor(
@@ -32,100 +23,40 @@ export class ItineraryService {
     private readonly trips: TripsService = tripsService
   ) {}
 
-  async listDays(userId: string, tripId: string) {
+  async listItems(userId: string, tripId: string) {
     await this.trips.ensureCanAccessTrip(userId, tripId);
-    return this.repository.listDays(tripId);
+
+    return this.repository.listItems(tripId);
   }
 
-  async createDay(userId: string, tripId: string, input: CreateDayInput) {
+  async listPlacesForTrip(userId: string, tripId: string) {
+    await this.trips.ensureCanAccessTrip(userId, tripId);
+
+    return this.repository.listPlacesForTrip(tripId);
+  }
+
+  async createItineraryItem(userId: string, tripId: string, input: CreateItineraryItemInput) {
     await this.trips.ensureCanEditTrip(userId, tripId);
 
-    const data: Prisma.TripDayUncheckedCreateInput = {
-      tripId,
-      date: parseDateOnly(input.date),
-      order: input.order
-    };
-
-    if (input.title !== undefined) data.title = input.title;
-    if (input.notes !== undefined) data.notes = input.notes;
-    if (input.weatherSnapshot !== undefined) data.weatherSnapshot = input.weatherSnapshot;
-
-    return this.repository.createDay(data);
+    return this.repository.createItineraryItem(await this.toCreateData(tripId, input));
   }
 
-  async updateDay(userId: string, dayId: string, input: UpdateDayInput) {
-    const day = await this.repository.findDayTripId(dayId);
+  async createItineraryItemForLegacyDay(
+    userId: string,
+    legacyDayId: string,
+    input: CreateItineraryItemInput
+  ) {
+    const day = await this.repository.findLegacyDayTripId(legacyDayId);
     if (!day) {
       throw new NotFoundError({ resourceKey: 'resources.itineraryDay' });
     }
 
     await this.trips.ensureCanEditTrip(userId, day.tripId);
 
-    const data: Prisma.TripDayUpdateInput = {
-      version: { increment: 1 }
-    };
-    if (input.date !== undefined) data.date = parseDateOnly(input.date);
-    if (input.title !== undefined) data.title = input.title;
-    if (input.notes !== undefined) data.notes = input.notes;
-    if (input.order !== undefined) data.order = input.order;
-    if (input.weatherSnapshot !== undefined) data.weatherSnapshot = input.weatherSnapshot;
-
-    return this.repository.updateDay(dayId, data);
-  }
-
-  async deleteDay(userId: string, dayId: string): Promise<void> {
-    const day = await this.repository.findDayTripId(dayId);
-    if (!day) {
-      throw new NotFoundError({ resourceKey: 'resources.itineraryDay' });
-    }
-
-    await this.trips.ensureCanEditTrip(userId, day.tripId);
-    await this.repository.deleteDay(dayId);
-  }
-
-  async reorderDays(userId: string, tripId: string, input: ReorderDaysInput) {
-    await this.trips.ensureCanEditTrip(userId, tripId);
-
-    const existingDays = await this.repository.findDayIds(tripId);
-    const existingIds = existingDays.map((day) => day.id);
-
-    if (!hasSameIds(existingIds, input.dayIds)) {
-      throw new ConflictError('Day reorder payload must include each trip day exactly once');
-    }
-
-    return this.repository.reorderDays(tripId, input.dayIds);
-  }
-
-  async createItineraryItem(userId: string, dayId: string, input: CreateItineraryItemInput) {
-    const day = await this.repository.findDayTripId(dayId);
-    if (!day) {
-      throw new NotFoundError({ resourceKey: 'resources.itineraryDay' });
-    }
-
-    await this.trips.ensureCanEditTrip(userId, day.tripId);
-
-    const data: Prisma.ItineraryItemUncheckedCreateInput = {
-      dayId,
-      title: input.title,
-      timezone: input.timezone,
-      status: input.status,
-      order: input.order
-    };
-
-    if (input.placeId !== undefined) data.placeId = input.placeId;
-    if (input.description !== undefined) data.description = input.description;
-    if (input.startTime) data.startTime = new Date(input.startTime);
-    if (input.endTime) data.endTime = new Date(input.endTime);
-    if (input.cost !== undefined) data.cost = input.cost;
-    if (input.currency !== undefined) data.currency = input.currency;
-    if (input.durationMinutes !== undefined) data.durationMinutes = input.durationMinutes;
-    if (input.travelMode !== undefined) data.travelMode = input.travelMode;
-    if (input.travelTimeMinutes !== undefined) data.travelTimeMinutes = input.travelTimeMinutes;
-    if (input.routePolyline !== undefined) data.routePolyline = input.routePolyline;
-    if (input.bookingInfo !== undefined) data.bookingInfo = input.bookingInfo;
-    if (input.metadata !== undefined) data.metadata = input.metadata;
-
-    return this.repository.createItineraryItem(data);
+    return this.repository.createItineraryItem({
+      ...(await this.toCreateData(day.tripId, input)),
+      legacyDayId
+    });
   }
 
   async updateItineraryItem(userId: string, itemId: string, input: UpdateItineraryItemInput) {
@@ -136,36 +67,38 @@ export class ItineraryService {
 
     await this.trips.ensureCanEditTrip(userId, access.tripId);
 
+    if (input.expectedVersion !== undefined && input.expectedVersion !== access.version) {
+      throw new ConflictError('Itinerary item version conflict');
+    }
+
     const data: Prisma.ItineraryItemUpdateInput = {
       version: { increment: 1 }
     };
 
-    if (input.dayId !== undefined && input.dayId !== access.dayId) {
-      const targetDay = await this.repository.findDayTripId(input.dayId);
-      if (!targetDay || targetDay.tripId !== access.tripId) {
-        throw new NotFoundError({ resourceKey: 'resources.itineraryDay' });
-      }
-      data.day = { connect: { id: input.dayId } };
-    }
     if (input.placeId !== undefined) {
       data.place = input.placeId ? { connect: { id: input.placeId } } : { disconnect: true };
     }
+    if (input.routeSegmentId !== undefined) {
+      data.routeSegment = input.routeSegmentId
+        ? { connect: { id: input.routeSegmentId } }
+        : { disconnect: true };
+    }
+    if (input.type !== undefined) data.type = input.type;
     if (input.title !== undefined) data.title = input.title;
     if (input.description !== undefined) data.description = input.description;
+    if (input.timezone !== undefined) data.timezone = input.timezone;
     if (input.startTime !== undefined)
       data.startTime = input.startTime ? new Date(input.startTime) : null;
     if (input.endTime !== undefined) data.endTime = input.endTime ? new Date(input.endTime) : null;
-    if (input.timezone !== undefined) data.timezone = input.timezone;
+    if (input.isFlexibleTime !== undefined) data.isFlexibleTime = input.isFlexibleTime;
+    if (input.isAllDay !== undefined) data.isAllDay = input.isAllDay;
+    if (input.sortOrder !== undefined) data.sortOrder = input.sortOrder;
     if (input.status !== undefined) data.status = input.status;
     if (input.cost !== undefined) data.cost = input.cost;
     if (input.currency !== undefined) data.currency = input.currency;
     if (input.durationMinutes !== undefined) data.durationMinutes = input.durationMinutes;
-    if (input.travelMode !== undefined) data.travelMode = input.travelMode;
-    if (input.travelTimeMinutes !== undefined) data.travelTimeMinutes = input.travelTimeMinutes;
-    if (input.routePolyline !== undefined) data.routePolyline = input.routePolyline;
     if (input.bookingInfo !== undefined) data.bookingInfo = input.bookingInfo;
     if (input.metadata !== undefined) data.metadata = input.metadata;
-    if (input.order !== undefined) data.order = input.order;
 
     return this.repository.updateItineraryItem(itemId, data);
   }
@@ -177,28 +110,67 @@ export class ItineraryService {
     }
 
     await this.trips.ensureCanEditTrip(userId, access.tripId);
-    await this.repository.deleteItineraryItem(itemId);
+    await this.repository.softDeleteItineraryItem(itemId);
   }
 
   async reorderItineraryItems(userId: string, tripId: string, input: ReorderItineraryItemsInput) {
     await this.trips.ensureCanEditTrip(userId, tripId);
 
     const itemIds = input.updates.map((update) => update.itemId);
-    const targetDayIds = [...new Set(input.updates.map((update) => update.dayId))];
-    const [items, targetDays] = await Promise.all([
-      this.repository.findItineraryItemsForTrip(itemIds),
-      this.repository.findTargetDays(tripId, targetDayIds)
-    ]);
+    if (hasDuplicateIds(itemIds)) {
+      throw new ConflictError('Itinerary reorder payload contains duplicate items');
+    }
 
-    if (items.length !== itemIds.length || items.some((item) => item.day.tripId !== tripId)) {
+    const items = await this.repository.findItineraryItemsForTrip(itemIds);
+    if (items.length !== itemIds.length || items.some((item) => item.tripId !== tripId)) {
       throw new ConflictError('Itinerary reorder payload contains items outside this trip');
     }
 
-    if (targetDays.length !== targetDayIds.length) {
-      throw new ConflictError('Itinerary reorder payload contains target days outside this trip');
+    const itemVersions = new Map(items.map((item) => [item.id, item.version]));
+    const staleUpdate = input.updates.find(
+      (update) =>
+        update.expectedVersion !== undefined &&
+        itemVersions.get(update.itemId) !== update.expectedVersion
+    );
+
+    if (staleUpdate) {
+      throw new ConflictError('Itinerary reorder payload contains a stale item version');
     }
 
     return this.repository.reorderItineraryItems(tripId, input.updates);
+  }
+
+  private async toCreateData(
+    tripId: string,
+    input: CreateItineraryItemInput
+  ): Promise<Prisma.ItineraryItemUncheckedCreateInput> {
+    const sortOrder =
+      input.sortOrder ??
+      ((await this.repository.getMaxSortOrder(tripId))._max.sortOrder ?? 0) + orderStride;
+
+    const data: Prisma.ItineraryItemUncheckedCreateInput = {
+      tripId,
+      title: input.title,
+      type: input.type,
+      timezone: input.timezone,
+      status: input.status,
+      isFlexibleTime: input.isFlexibleTime,
+      isAllDay: input.isAllDay,
+      sortOrder
+    };
+
+    if (input.placeId !== undefined) data.placeId = input.placeId;
+    if (input.routeSegmentId !== undefined) data.routeSegmentId = input.routeSegmentId;
+    if (input.description !== undefined) data.description = input.description;
+    if (input.startTime) data.startTime = new Date(input.startTime);
+    if (input.endTime) data.endTime = new Date(input.endTime);
+    if (input.cost !== undefined) data.cost = input.cost;
+    if (input.currency !== undefined) data.currency = input.currency;
+    if (input.durationMinutes !== undefined) data.durationMinutes = input.durationMinutes;
+    if (input.bookingInfo !== undefined) data.bookingInfo = input.bookingInfo;
+    if (input.metadata !== undefined) data.metadata = input.metadata;
+
+    return data;
   }
 }
 

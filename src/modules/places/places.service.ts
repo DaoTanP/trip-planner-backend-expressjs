@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client';
+import { PlaceProvider } from '@prisma/client';
 
 import { NotFoundError } from '@/common/errors/not-found-error.js';
 import { logger } from '@/common/logger/logger.js';
@@ -64,12 +65,14 @@ export class PlacesService {
 
   createPlace(input: CreatePlaceInput) {
     const data: Prisma.PlaceCreateInput = {
-      source: input.source,
+      provider: input.provider ?? input.source ?? PlaceProvider.MANUAL,
       name: input.name,
       categories: input.categories
     };
 
-    if (input.externalId !== undefined) data.externalId = input.externalId;
+    if (input.providerPlaceId !== undefined) data.providerPlaceId = input.providerPlaceId;
+    if (input.externalId !== undefined) data.providerPlaceId = input.externalId;
+    if (input.address !== undefined) data.address = input.address;
     if (input.formattedAddress !== undefined) data.formattedAddress = input.formattedAddress;
     if (input.countryCode !== undefined) data.countryCode = input.countryCode;
     if (input.latitude !== undefined) data.latitude = input.latitude;
@@ -77,7 +80,8 @@ export class PlacesService {
     if (input.websiteUrl !== undefined) data.websiteUrl = input.websiteUrl;
     if (input.phoneNumber !== undefined) data.phoneNumber = input.phoneNumber;
     if (input.timezone !== undefined) data.timezone = input.timezone;
-    if (input.sourcePayload !== undefined) data.sourcePayload = input.sourcePayload;
+    if (input.providerPayload !== undefined) data.providerPayload = input.providerPayload;
+    if (input.sourcePayload !== undefined) data.providerPayload = input.sourcePayload;
     if (input.metadata !== undefined) data.metadata = input.metadata;
 
     return this.repository.create(data);

@@ -54,6 +54,17 @@ enum ItineraryItemStatus {
   @@map("ActivityStatus")
 }
 
+enum ItineraryItemType {
+  ACTIVITY
+  PLACE
+  LODGING
+  TRANSPORT
+  FOOD
+  NOTE
+  TASK
+  CUSTOM
+}
+
 enum CommentTargetType {
   TRIP
   DAY
@@ -73,8 +84,17 @@ enum NotificationStatus {
   ARCHIVED
 }
 
-enum PlaceSource {
+enum PlaceProvider {
   MANUAL
+  GOOGLE
+  MAPBOX
+  OSM
+  INTERNAL
+
+  @@map("PlaceSource")
+}
+
+enum RouteProvider {
   GOOGLE
   MAPBOX
   OSM
@@ -103,6 +123,8 @@ model User {
   comments       Comment[]
   notifications  Notification[]
   tripNotes      TripNote[]
+  itineraryNotes ItineraryNote[]
+  paidExpenses   Expense[]
 
   @@index([status])
   @@index([createdAt])
@@ -157,19 +179,25 @@ model Trip {
   visibility    TripVisibility @default(PRIVATE)
   status        TripStatus     @default(DRAFT)
   preferences   Json?
-  budget        Json?
+  legacyBudget  Json?          @map("budget")
   metadata      Json?
   version       Int            @default(1)
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
-  owner         User               @relation("TripOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  destinations  Destination[]
-  collaborators TripCollaborator[]
-  days          TripDay[]
-  notes         TripNote[]
-  comments      Comment[]
-  notifications Notification[]
+  owner             User                @relation("TripOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  destinations      Destination[]
+  collaborators     TripCollaborator[]
+  days              TripDay[]
+  itineraryItems    ItineraryItem[]
+  routeSegments     RouteSegment[]
+  notes             TripNote[]
+  itineraryNotes    ItineraryNote[]
+  budgetRecord      Budget?
+  expenseCategories ExpenseCategory[]
+  expenses          Expense[]
+  comments          Comment[]
+  notifications     Notification[]
 
   @@index([ownerId])
   @@index([status])
@@ -231,9 +259,9 @@ model TripDay {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  trip     Trip            @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  items    ItineraryItem[]
-  comments Comment[]
+  trip        Trip            @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  legacyItems ItineraryItem[] @relation("LegacyItineraryItemDay")
+  comments    Comment[]
 
   @@unique([tripId, date])
   @@index([tripId, order])
@@ -242,13 +270,19 @@ model TripDay {
 
 model ItineraryItem {
   id                  String              @id @default(uuid()) @db.Uuid
-  dayId               String              @db.Uuid
+  tripId              String              @db.Uuid
+  legacyDayId         String?             @map("dayId") @db.Uuid
   placeId             String?             @db.Uuid
+  routeSegmentId      String?             @db.Uuid
+  type                ItineraryItemType   @default(ACTIVITY)
   title               String              @db.VarChar(180)
   description         String?             @db.Text
+  timezone            String              @default("UTC") @db.VarChar(80)
   startTime           DateTime?
   endTime             DateTime?
-  timezone            String              @default("UTC") @db.VarChar(80)
+  isFlexibleTime      Boolean             @default(true)
+  isAllDay            Boolean             @default(false)
+  sortOrder           Int                 @default(0)
   status              ItineraryItemStatus @default(PLANNED)
   cost                Decimal?            @db.Decimal(12, 2)
   currency            String?             @db.VarChar(3)
@@ -258,26 +292,34 @@ model ItineraryItem {
   routePolyline       String?             @db.Text
   bookingInfo         Json?
   metadata            Json?
-  order               Int                 @default(0)
   version             Int                 @default(1)
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
+  deletedAt           DateTime?
 
-  day      TripDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
-  place    Place?  @relation(fields: [placeId], references: [id], onDelete: SetNull)
-  comments Comment[]
+  trip         Trip             @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  legacyDay    TripDay?         @relation("LegacyItineraryItemDay", fields: [legacyDayId], references: [id], onDelete: SetNull)
+  place        Place?           @relation(fields: [placeId], references: [id], onDelete: SetNull)
+  routeSegment RouteSegment?    @relation(fields: [routeSegmentId], references: [id], onDelete: SetNull)
+  notes        ItineraryNote[]
+  expenses     Expense[]
+  comments     Comment[]
 
-  @@index([dayId, order])
+  @@index([tripId, deletedAt, sortOrder])
+  @@index([tripId, status])
+  @@index([legacyDayId])
   @@index([placeId])
+  @@index([routeSegmentId])
   @@index([status])
   @@map("Activity")
 }
 
 model Place {
-  id               String      @id @default(uuid()) @db.Uuid
-  source           PlaceSource @default(MANUAL)
-  externalId       String?     @db.VarChar(255)
+  id               String        @id @default(uuid()) @db.Uuid
+  provider         PlaceProvider @default(MANUAL) @map("source")
+  providerPlaceId  String?       @map("externalId") @db.VarChar(255)
   name             String      @db.VarChar(180)
+  address          String?     @db.Text
   formattedAddress String?     @db.Text
   countryCode      String?     @db.VarChar(2)
   latitude         Decimal?    @db.Decimal(9, 6)
@@ -286,17 +328,42 @@ model Place {
   phoneNumber      String?     @db.VarChar(40)
   timezone         String?     @db.VarChar(80)
   categories       String[]    @default([])
-  sourcePayload    Json?
+  providerPayload  Json?       @map("sourcePayload")
   metadata         Json?
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
 
-  destinations   Destination[]
-  itineraryItems ItineraryItem[]
+  destinations      Destination[]
+  itineraryItems    ItineraryItem[]
+  routeSegmentsFrom RouteSegment[] @relation("RouteFromPlace")
+  routeSegmentsTo   RouteSegment[] @relation("RouteToPlace")
 
-  @@unique([source, externalId])
+  @@unique([provider, providerPlaceId])
   @@index([name])
   @@index([countryCode])
+  @@index([latitude, longitude])
+}
+
+model RouteSegment {
+  id              String        @id @default(uuid()) @db.Uuid
+  tripId          String?       @db.Uuid
+  fromPlaceId     String        @db.Uuid
+  toPlaceId       String        @db.Uuid
+  provider        RouteProvider
+  polyline        String        @db.Text
+  distanceMeters  Int?
+  durationSeconds Int?
+  metadata        Json?
+  createdAt       DateTime      @default(now())
+
+  trip             Trip?           @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  fromPlace        Place           @relation("RouteFromPlace", fields: [fromPlaceId], references: [id], onDelete: Cascade)
+  toPlace          Place           @relation("RouteToPlace", fields: [toPlaceId], references: [id], onDelete: Cascade)
+  itineraryItems   ItineraryItem[]
+
+  @@unique([provider, fromPlaceId, toPlaceId])
+  @@index([tripId])
+  @@index([fromPlaceId, toPlaceId])
 }
 
 model TripNote {
@@ -317,6 +384,90 @@ model TripNote {
 
   @@index([tripId, order])
   @@index([authorId])
+}
+
+model ItineraryNote {
+  id              String   @id @default(uuid()) @db.Uuid
+  tripId          String   @db.Uuid
+  itineraryItemId String   @db.Uuid
+  authorId        String?  @db.Uuid
+  body            String   @db.Text
+  metadata        Json?
+  version         Int      @default(1)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  trip          Trip          @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  itineraryItem ItineraryItem @relation(fields: [itineraryItemId], references: [id], onDelete: Cascade)
+  author        User?         @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([tripId, createdAt])
+  @@index([itineraryItemId, createdAt])
+  @@index([authorId])
+}
+
+model Budget {
+  id           String   @id @default(uuid()) @db.Uuid
+  tripId       String   @unique @db.Uuid
+  currency     String   @default("USD") @db.VarChar(3)
+  totalLimit   Decimal? @db.Decimal(12, 2)
+  metadata     Json?
+  version      Int      @default(1)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  trip     Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  expenses Expense[]
+
+  @@index([tripId])
+}
+
+model ExpenseCategory {
+  id        String   @id @default(uuid()) @db.Uuid
+  tripId    String   @db.Uuid
+  name      String   @db.VarChar(120)
+  color     String?  @db.VarChar(32)
+  sortOrder Int      @default(0)
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  trip     Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  expenses Expense[]
+
+  @@unique([tripId, name])
+  @@index([tripId, sortOrder])
+}
+
+model Expense {
+  id              String   @id @default(uuid()) @db.Uuid
+  tripId          String   @db.Uuid
+  budgetId        String?  @db.Uuid
+  categoryId      String?  @db.Uuid
+  itineraryItemId String?  @db.Uuid
+  title           String   @db.VarChar(180)
+  amount          Decimal  @db.Decimal(12, 2)
+  currency        String   @db.VarChar(3)
+  paidByUserId    String?  @db.Uuid
+  spentAt         DateTime?
+  notes           String?  @db.Text
+  metadata        Json?
+  version         Int      @default(1)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  trip          Trip             @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  budget        Budget?          @relation(fields: [budgetId], references: [id], onDelete: SetNull)
+  category      ExpenseCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  itineraryItem ItineraryItem?    @relation(fields: [itineraryItemId], references: [id], onDelete: SetNull)
+  paidByUser    User?            @relation(fields: [paidByUserId], references: [id], onDelete: SetNull)
+
+  @@index([tripId, deletedAt, spentAt])
+  @@index([budgetId])
+  @@index([categoryId])
+  @@index([itineraryItemId])
+  @@index([paidByUserId])
 }
 
 model Comment {
