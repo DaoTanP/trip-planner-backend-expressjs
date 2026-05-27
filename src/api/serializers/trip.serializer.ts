@@ -3,12 +3,13 @@ import type {
   ExpenseCategoryDto,
   ExpenseDto,
   ItineraryItemDto,
+  CommentDto,
+  NoteDto,
   PlaceDto,
   RouteSegmentDto,
   TripCollaboratorDto,
   TripDetailDto,
   TripExpensesDto,
-  TripNoteDto,
   TripSummaryDto
 } from '@/api/contracts/index.js';
 
@@ -66,25 +67,31 @@ type RouteSegmentRecord = {
   fromPlaceId: string;
   toPlaceId: string;
   provider: RouteSegmentDto['provider'];
+  travelMode: string;
+  routeProfileHash: string;
   polyline: string;
   distanceMeters: number | null;
   durationSeconds: number | null;
   metadata?: unknown;
+  version?: number;
+  expiresAt?: Date | string | null;
   createdAt: Date | string;
+  updatedAt: Date | string;
+  deletedAt?: Date | string | null;
 };
 
-type TripNoteRecord = {
+type NoteRecord = {
   id: string;
   tripId: string;
   authorId: string | null;
-  title: string | null;
+  targetEntityType: string;
+  targetEntityId: string;
   body: string;
-  order: number;
-  pinned: boolean;
   metadata?: unknown;
   version?: number;
   createdAt: Date | string;
   updatedAt: Date | string;
+  deletedAt?: Date | string | null;
 };
 
 type TripSummaryRecord = {
@@ -100,7 +107,6 @@ type TripSummaryRecord = {
   version?: number;
   createdAt: Date | string;
   updatedAt: Date | string;
-  destinations?: Array<{ name: string }>;
   _count?: {
     collaborators?: number;
     itineraryItems?: number;
@@ -123,6 +129,10 @@ type CollaboratorRecord = {
   id: string;
   role: TripCollaboratorDto['role'];
   acceptedAt: Date | string | null;
+  version?: number;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  deletedAt?: Date | string | null;
   user: TripCollaboratorDto['user'];
 };
 
@@ -144,8 +154,10 @@ type ExpenseCategoryRecord = {
   color: string | null;
   sortOrder: number;
   metadata?: unknown;
+  version?: number;
   createdAt: Date | string;
   updatedAt: Date | string;
+  deletedAt?: Date | string | null;
 };
 
 type ExpenseRecord = {
@@ -160,6 +172,20 @@ type ExpenseRecord = {
   paidByUserId: string | null;
   spentAt: Date | string | null;
   notes: string | null;
+  metadata?: unknown;
+  version?: number;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  deletedAt?: Date | string | null;
+};
+
+type CommentRecord = {
+  id: string;
+  tripId: string;
+  authorId: string;
+  targetEntityType: string;
+  targetEntityId: string;
+  body: string;
   metadata?: unknown;
   version?: number;
   createdAt: Date | string;
@@ -264,25 +290,31 @@ export const serializeRouteSegment = (route: RouteSegmentRecord): RouteSegmentDt
   fromPlaceId: route.fromPlaceId,
   toPlaceId: route.toPlaceId,
   provider: route.provider,
+  travelMode: route.travelMode,
+  routeProfileHash: route.routeProfileHash,
   polyline: route.polyline,
   distanceMeters: route.distanceMeters,
   durationSeconds: route.durationSeconds,
   metadata: toJsonRecord(route.metadata),
-  createdAt: toIsoString(route.createdAt) ?? ''
+  version: route.version ?? 1,
+  expiresAt: toIsoString(route.expiresAt ?? null),
+  createdAt: toIsoString(route.createdAt) ?? '',
+  updatedAt: toIsoString(route.updatedAt) ?? '',
+  deletedAt: toIsoString(route.deletedAt ?? null)
 });
 
-export const serializeTripNote = (note: TripNoteRecord): TripNoteDto => ({
+export const serializeNote = (note: NoteRecord): NoteDto => ({
   id: note.id,
   tripId: note.tripId,
   authorId: note.authorId,
-  title: note.title,
+  targetEntityType: note.targetEntityType,
+  targetEntityId: note.targetEntityId,
   body: note.body,
-  order: note.order,
-  pinned: note.pinned,
   metadata: toJsonRecord(note.metadata),
   version: note.version ?? 1,
   createdAt: toIsoString(note.createdAt) ?? '',
-  updatedAt: toIsoString(note.updatedAt) ?? ''
+  updatedAt: toIsoString(note.updatedAt) ?? '',
+  deletedAt: toIsoString(note.deletedAt ?? null)
 });
 
 export const serializeTripSummary = (trip: TripSummaryRecord): TripSummaryDto => ({
@@ -295,7 +327,6 @@ export const serializeTripSummary = (trip: TripSummaryRecord): TripSummaryDto =>
   visibility: trip.visibility,
   status: trip.status,
   coverImageUrl: trip.coverImageUrl,
-  destinationNames: trip.destinations?.map((destination) => destination.name) ?? [],
   collaboratorCount: trip._count?.collaborators ?? 0,
   itineraryItemCount: trip._count?.itineraryItems ?? 0,
   noteCount: trip._count?.notes ?? 0,
@@ -318,6 +349,10 @@ export const serializeTripCollaborator = (
   id: collaborator.id,
   role: collaborator.role,
   acceptedAt: toIsoString(collaborator.acceptedAt),
+  version: collaborator.version ?? 1,
+  createdAt: toIsoString(collaborator.createdAt) ?? '',
+  updatedAt: toIsoString(collaborator.updatedAt) ?? '',
+  deletedAt: toIsoString(collaborator.deletedAt ?? null),
   user: collaborator.user
 });
 
@@ -339,8 +374,10 @@ export const serializeExpenseCategory = (category: ExpenseCategoryRecord): Expen
   color: category.color,
   sortOrder: category.sortOrder,
   metadata: toJsonRecord(category.metadata),
+  version: category.version ?? 1,
   createdAt: toIsoString(category.createdAt) ?? '',
-  updatedAt: toIsoString(category.updatedAt) ?? ''
+  updatedAt: toIsoString(category.updatedAt) ?? '',
+  deletedAt: toIsoString(category.deletedAt ?? null)
 });
 
 export const serializeExpense = (expense: ExpenseRecord): ExpenseDto => ({
@@ -370,4 +407,18 @@ export const serializeTripExpenses = (input: {
   budget: input.budget ? serializeBudget(input.budget) : null,
   categories: input.categories.map(serializeExpenseCategory),
   expenses: input.expenses.map(serializeExpense)
+});
+
+export const serializeComment = (comment: CommentRecord): CommentDto => ({
+  id: comment.id,
+  tripId: comment.tripId,
+  authorId: comment.authorId,
+  targetEntityType: comment.targetEntityType,
+  targetEntityId: comment.targetEntityId,
+  body: comment.body,
+  metadata: toJsonRecord(comment.metadata),
+  version: comment.version ?? 1,
+  createdAt: toIsoString(comment.createdAt) ?? '',
+  updatedAt: toIsoString(comment.updatedAt) ?? '',
+  deletedAt: toIsoString(comment.deletedAt ?? null)
 });

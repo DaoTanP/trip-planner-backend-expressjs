@@ -45,6 +45,10 @@ const itineraryItemPayloadSchema = z
 export const listItinerarySchema = z.object({
   params: z.object({
     tripId: uuidParam
+  }),
+  query: z.object({
+    cursor: z.string().trim().optional(),
+    limit: z.coerce.number().int().positive().max(100).default(50)
   })
 });
 
@@ -83,13 +87,6 @@ export const createTripItineraryItemSchema = z.object({
     })
 });
 
-export const createLegacyDayItineraryItemSchema = z.object({
-  params: z.object({
-    dayId: uuidParam
-  }),
-  body: createTripItineraryItemSchema.shape.body
-});
-
 export const updateItineraryItemSchema = z.object({
   params: z.object({
     itemId: uuidParam
@@ -101,19 +98,22 @@ export const reorderItineraryItemsSchema = z.object({
   params: z.object({
     tripId: uuidParam
   }),
-  body: z.object({
-    updates: z
-      .array(
-        z.object({
-          itemId: uuidParam,
-          sortOrder: z.number().int().min(0),
-          expectedVersion: z.number().int().positive().optional()
-        })
-      )
-      .min(1)
-      .max(1000),
-    clientMutationId: clientMutationIdSchema
-  })
+  body: z
+    .object({
+      itemId: uuidParam,
+      beforeItemId: uuidParam.nullable().optional(),
+      afterItemId: uuidParam.nullable().optional(),
+      expectedVersion: z.number().int().positive().optional(),
+      clientMutationId: clientMutationIdSchema
+    })
+    .refine((value) => value.itemId !== value.beforeItemId, {
+      message: 'validation.itinerary.reorderSelfReference',
+      path: ['beforeItemId']
+    })
+    .refine((value) => value.itemId !== value.afterItemId, {
+      message: 'validation.itinerary.reorderSelfReference',
+      path: ['afterItemId']
+    })
 });
 
 export const itineraryItemIdSchema = z.object({
@@ -123,11 +123,9 @@ export const itineraryItemIdSchema = z.object({
 });
 
 export type ListItineraryParams = z.infer<typeof listItinerarySchema>['params'];
+export type ListItineraryQuery = z.infer<typeof listItinerarySchema>['query'];
 export type CreateItineraryItemInput = z.infer<typeof createTripItineraryItemSchema>['body'];
 export type CreateTripItineraryItemParams = z.infer<typeof createTripItineraryItemSchema>['params'];
-export type CreateLegacyDayItineraryItemParams = z.infer<
-  typeof createLegacyDayItineraryItemSchema
->['params'];
 export type UpdateItineraryItemInput = z.infer<typeof updateItineraryItemSchema>['body'];
 export type ItineraryItemIdParams = z.infer<typeof itineraryItemIdSchema>['params'];
 export type ReorderItineraryItemsInput = z.infer<typeof reorderItineraryItemsSchema>['body'];

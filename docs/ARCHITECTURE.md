@@ -171,7 +171,10 @@ export class TripsRepository {
   findById(id: string) {
     return prisma.trip.findUnique({
       where: { id },
-      include: { destinations: true, days: true }
+      include: {
+        owner: { select: { id: true, name: true, email: true } },
+        _count: { select: { collaborators: true, itineraryItems: true } }
+      }
     });
   }
 }
@@ -282,6 +285,7 @@ Rules:
 - Zod validation responses are localized in `validateRequest`, not inside individual controllers.
 - Operational errors store message keys and parameters; the error handler translates them for the request locale.
 - Domain modules own their user-facing templates. For example, notification and notification-email templates live in the notifications module and use shared translation helpers.
+- Notification rows store `notificationCode` and `params`, not rendered title/body text. Frontends render localized notification copy from their own i18n catalog.
 - User locale and timezone preferences are persisted on `User` and read through `UsersService` when another module needs recipient preferences.
 - Date-only values remain local calendar dates. Instants are stored in UTC, with timezone fields preserved for user-facing formatting.
 
@@ -419,14 +423,16 @@ Trip
   -> ItineraryItem[]
   -> Place[]
   -> RouteSegment[]
-  -> TripNote[]
+  -> Note[]
   -> Collaborators[]
   -> Budget/Expense[]
 ```
 
-`ItineraryItem` is a first-class entity with direct `tripId`, optional `placeId`, optional `routeSegmentId`, `sortOrder`, `version`, and soft delete fields. `TripDay` may remain as a legacy/presentation artifact while existing data migrates, but new APIs and services must not make day ownership a structural boundary.
+`ItineraryItem` is a first-class entity with direct `tripId`, optional `placeId`, optional `routeSegmentId`, `sortOrder`, `version`, and soft delete fields. `TripDay`, `legacyDayId`, day-target comments, and day-based reorder contracts are not part of the active model.
 
 Why: flat item sequences are easier to render as long timelines, reorder optimistically, synchronize with map markers, patch from realtime events, and reuse from future offline/mobile clients. Calendar day grouping can still exist, but it is computed from item times or UI labels and never required for persistence.
+
+`Destination` is not an active planning entity. High-level city/region hints should be represented through trip metadata or normalized `Place` records only when they are useful to query or render; itinerary activities still reference `placeId` directly.
 
 ## 23. Granular Resource APIs
 
@@ -436,24 +442,33 @@ The trip editor reads separate resources:
 - `GET /trips/:tripId/itinerary` for flat itinerary items.
 - `GET /trips/:tripId/places` for normalized places used by the itinerary.
 - `GET /trips/:tripId/routes` for cached route geometry.
-- `GET /trips/:tripId/notes` for trip notes.
+- `GET /trips/:tripId/notes` for generic trip-scoped notes.
 - `GET /trips/:tripId/collaborators` for sharing state.
 - `GET /trips/:tripId/expenses` for budget analytics inputs.
 
 Why: granular APIs keep payloads small, let TanStack Query invalidate only the changed resource, and make realtime/offline reconciliation possible without replacing a full trip graph after every mutation.
 
-## 24. Ordering And Optimistic Updates
+`Note` is a generic collaboration entity scoped to a trip and attached with `targetEntityType` plus `targetEntityId`. Trip notes, itinerary notes, route notes, and future expense/collaborator notes use the same table and application-level target validation.
 
-Itinerary ordering uses spaced integer positions: `1024`, `2048`, `3072`, and so on. Reorder endpoints accept the final client order and update only affected rows transactionally.
+## 24. Cursor Pagination, Ordering, And Optimistic Updates
+
+Large collaboration resources use cursor pagination. Itinerary items page by `(sortOrder, id)`, while notes, comments, route segments, and expenses page by `(createdAt, id)`. Controllers return cursor metadata through `sendCursorPaginated` and `meta.pagination`.
+
+Itinerary ordering uses spaced integer positions: `1024`, `2048`, `3072`, and so on. Reorder endpoints are intent based: the client sends the moved item and its new neighbors, then the backend computes the next sparse order inside a transaction.
 
 ```json
 {
-  "updates": [{ "itemId": "...", "sortOrder": 1024, "expectedVersion": 3 }],
+  "itemId": "...",
+  "beforeItemId": "...",
+  "afterItemId": "...",
+  "expectedVersion": 3,
   "clientMutationId": "optional-client-id"
 }
 ```
 
-Services validate that all item IDs belong to the target trip before any writes occur. Mutations echo `clientMutationId` where useful, increment row `version`, and may reject stale `expectedVersion` values. This supports optimistic rollback today and future websocket echo suppression later.
+Services validate that the moved item and neighbors belong to the target trip before any writes occur. The common case updates only the moved row; a full sparse-order rebalance happens only when there is no gap left between neighbors.
+
+Mutations echo `clientMutationId` where useful, increment row `version`, and may reject stale `expectedVersion` values. A lightweight `ClientMutation` table records mutation IDs for idempotency, future websocket dedupe, and offline/mobile replay without introducing event sourcing.
 
 ## 25. Place And Route Provider Boundaries
 
@@ -466,7 +481,9 @@ Services validate that all item IDs belong to the target trip before any writes 
 
 Future Google Places, Mapbox, or OSM geocoding adapters should normalize external records into the `Place` contract before returning them. Controllers should not call provider SDKs directly.
 
-`RouteSegment` stores provider, from/to place IDs, encoded polyline, distance, duration, and JSON metadata for provider-specific details. Route geometry is cacheable and reusable; it must not replace normalized place coordinates as the source of truth.
+`RouteSegment` stores provider, travel mode, from/to place IDs, route profile hash, encoded polyline, distance, duration, lifecycle timestamps, and JSON metadata for provider-specific details. Its uniqueness is provider + from place + to place + travel mode + route profile hash so Google, Mapbox, OSM, alternate routes, traffic-aware variants, and departure-time-sensitive variants can coexist. Route geometry is cacheable and reusable; it must not replace normalized place coordinates as the source of truth.
+
+Comments use `targetEntityType` and `targetEntityId` rather than one nullable column per target type. This keeps comments extensible for itinerary items, expenses, notes, routes, and future collaboration entities without adding schema branches for each feature.
 
 ## 26. Realtime Preparation
 

@@ -1,14 +1,13 @@
 import type { Prisma, TripRole } from '@prisma/client';
 
 import { AuthorizationError } from '@/common/errors/authorization-error.js';
-import { ConflictError } from '@/common/errors/conflict-error.js';
 import { NotFoundError } from '@/common/errors/not-found-error.js';
+import { normalizeCursorLimit } from '@/common/utils/cursor-pagination.js';
 import { parseDateOnly } from '@/common/utils/date.js';
 import type {
-  CreateTripNoteInput,
   CreateTripInput,
+  ListTripExpensesQuery,
   ListTripsQuery,
-  UpdateTripNoteInput,
   UpdateTripInput
 } from '@/modules/trips/trips.schemas.js';
 import { tripsRepository, type TripsRepository } from '@/modules/trips/trips.repository.js';
@@ -110,72 +109,19 @@ export class TripsService {
     await this.repository.delete(tripId);
   }
 
-  async createTripNote(userId: string, tripId: string, input: CreateTripNoteInput) {
-    await this.ensureCanEditTrip(userId, tripId);
-
-    const data: Prisma.TripNoteUncheckedCreateInput = {
-      tripId,
-      authorId: userId,
-      body: input.body,
-      order: input.order,
-      pinned: input.pinned
-    };
-
-    if (input.title !== undefined) data.title = input.title;
-    if (input.metadata !== undefined) data.metadata = input.metadata;
-
-    return this.repository.createNote(data);
-  }
-
-  async listTripNotes(userId: string, tripId: string) {
-    await this.ensureCanAccessTrip(userId, tripId);
-
-    return this.repository.listNotes(tripId);
-  }
-
   async listCollaborators(userId: string, tripId: string) {
     await this.ensureCanAccessTrip(userId, tripId);
 
     return this.repository.listCollaborators(tripId);
   }
 
-  async getExpenses(userId: string, tripId: string) {
+  async getExpenses(userId: string, tripId: string, query: ListTripExpensesQuery) {
     await this.ensureCanAccessTrip(userId, tripId);
 
-    return this.repository.getExpenses(tripId);
-  }
-
-  async updateTripNote(userId: string, noteId: string, input: UpdateTripNoteInput) {
-    const access = await this.repository.findNoteTripId(noteId);
-    if (!access) {
-      throw new NotFoundError({ resourceKey: 'resources.tripNote' });
-    }
-
-    await this.ensureCanEditTrip(userId, access.tripId);
-
-    if (input.expectedVersion !== undefined && input.expectedVersion !== access.version) {
-      throw new ConflictError('Trip note version conflict');
-    }
-
-    const data: Prisma.TripNoteUpdateInput = {};
-    if (input.title !== undefined) data.title = input.title;
-    if (input.body !== undefined) data.body = input.body;
-    if (input.order !== undefined) data.order = input.order;
-    if (input.pinned !== undefined) data.pinned = input.pinned;
-    if (input.metadata !== undefined) data.metadata = input.metadata;
-    data.version = { increment: 1 };
-
-    return this.repository.updateNote(noteId, data);
-  }
-
-  async deleteTripNote(userId: string, noteId: string): Promise<void> {
-    const access = await this.repository.findNoteTripId(noteId);
-    if (!access) {
-      throw new NotFoundError({ resourceKey: 'resources.tripNote' });
-    }
-
-    await this.ensureCanEditTrip(userId, access.tripId);
-    await this.repository.deleteNote(noteId);
+    return this.repository.getExpenses(tripId, {
+      cursor: query.cursor,
+      limit: normalizeCursorLimit(query.limit)
+    });
   }
 
   async ensureCanAccessTrip(userId: string, tripId: string): Promise<void> {

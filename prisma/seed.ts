@@ -51,22 +51,6 @@ async function main() {
       timezone: 'Asia/Bangkok',
       status: 'PLANNED',
       visibility: 'PRIVATE',
-      destinations: {
-        create: [
-          {
-            name: 'Hanoi',
-            countryCode: 'VN',
-            city: 'Hanoi',
-            order: 1
-          },
-          {
-            name: 'Ha Long Bay',
-            countryCode: 'VN',
-            city: 'Ha Long',
-            order: 2
-          }
-        ]
-      },
       itineraryItems: {
         create: [
           {

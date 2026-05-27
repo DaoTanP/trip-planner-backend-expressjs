@@ -4,20 +4,23 @@ import type { ParamsDictionary } from 'express-serve-static-core';
 import {
   serializeTripCollaborator,
   serializeTripDetail,
-  serializeTripNote,
   serializeTripExpenses,
   serializeTripSummary
 } from '@/api/serializers/trip.serializer.js';
 import { AuthError } from '@/common/errors/auth-error.js';
-import { sendCreated, sendNoContent, sendPaginated, sendSuccess } from '@/common/utils/response.js';
+import {
+  sendCreated,
+  sendCursorPaginated,
+  sendNoContent,
+  sendPaginated,
+  sendSuccess
+} from '@/common/utils/response.js';
 import type {
   CreateTripInput,
-  CreateTripNoteInput,
-  CreateTripNoteParams,
+  ListTripExpensesParams,
+  ListTripExpensesQuery,
   ListTripsQuery,
-  TripNoteIdParams,
   TripIdParams,
-  UpdateTripNoteInput,
   UpdateTripInput
 } from '@/modules/trips/trips.schemas.js';
 import { tripsService, type TripsService } from '@/modules/trips/trips.service.js';
@@ -61,22 +64,6 @@ export class TripsController {
     return sendNoContent(res);
   };
 
-  createNote = async (
-    req: Request<CreateTripNoteParams, unknown, CreateTripNoteInput>,
-    res: Response
-  ) => {
-    const note = await this.service.createTripNote(requireUserId(req), req.params.tripId, req.body);
-    return sendCreated(res, {
-      note: serializeTripNote(note),
-      ...(req.body.clientMutationId ? { clientMutationId: req.body.clientMutationId } : {})
-    });
-  };
-
-  listNotes = async (req: Request<TripIdParams>, res: Response) => {
-    const notes = await this.service.listTripNotes(requireUserId(req), req.params.tripId);
-    return sendSuccess(res, { notes: notes.map(serializeTripNote) });
-  };
-
   listCollaborators = async (req: Request<TripIdParams>, res: Response) => {
     const collaborators = await this.service.listCollaborators(
       requireUserId(req),
@@ -85,25 +72,24 @@ export class TripsController {
     return sendSuccess(res, { collaborators: collaborators.map(serializeTripCollaborator) });
   };
 
-  getExpenses = async (req: Request<TripIdParams>, res: Response) => {
-    const expenses = await this.service.getExpenses(requireUserId(req), req.params.tripId);
-    return sendSuccess(res, serializeTripExpenses(expenses));
-  };
-
-  updateNote = async (
-    req: Request<TripNoteIdParams, unknown, UpdateTripNoteInput>,
+  getExpenses = async (
+    req: Request<ListTripExpensesParams, unknown, unknown, ListTripExpensesQuery>,
     res: Response
   ) => {
-    const note = await this.service.updateTripNote(requireUserId(req), req.params.noteId, req.body);
-    return sendSuccess(res, {
-      note: serializeTripNote(note),
-      ...(req.body.clientMutationId ? { clientMutationId: req.body.clientMutationId } : {})
-    });
-  };
-
-  deleteNote = async (req: Request<TripNoteIdParams>, res: Response) => {
-    await this.service.deleteTripNote(requireUserId(req), req.params.noteId);
-    return sendNoContent(res);
+    const expenses = await this.service.getExpenses(
+      requireUserId(req),
+      req.params.tripId,
+      req.query
+    );
+    return sendCursorPaginated(
+      res,
+      serializeTripExpenses({
+        budget: expenses.budget,
+        categories: expenses.categories,
+        expenses: expenses.expenses.items
+      }),
+      expenses.expenses.pagination
+    );
   };
 }
 

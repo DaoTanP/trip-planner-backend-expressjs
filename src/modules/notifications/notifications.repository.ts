@@ -9,7 +9,10 @@ export class NotificationsRepository {
     });
   }
 
-  list(userId: string, filters: { status?: NotificationStatus; limit: number }): Promise<Notification[]> {
+  list(
+    userId: string,
+    filters: { status?: NotificationStatus; limit: number }
+  ): Promise<Notification[]> {
     return prisma.notification.findMany({
       where: {
         userId,

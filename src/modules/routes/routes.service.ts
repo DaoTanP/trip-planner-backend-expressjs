@@ -1,4 +1,6 @@
+import { normalizeCursorLimit } from '@/common/utils/cursor-pagination.js';
 import { routesRepository, type RoutesRepository } from '@/modules/routes/routes.repository.js';
+import type { ListTripRoutesQuery } from '@/modules/routes/routes.schemas.js';
 import { tripsService, type TripsService } from '@/modules/trips/trips.service.js';
 
 export class RoutesService {
@@ -7,10 +9,13 @@ export class RoutesService {
     private readonly trips: TripsService = tripsService
   ) {}
 
-  async listRoutes(userId: string, tripId: string) {
+  async listRoutes(userId: string, tripId: string, query: ListTripRoutesQuery) {
     await this.trips.ensureCanAccessTrip(userId, tripId);
 
-    return this.repository.listForTrip(tripId);
+    return this.repository.listForTrip(tripId, {
+      cursor: query.cursor,
+      limit: normalizeCursorLimit(query.limit)
+    });
   }
 }
 

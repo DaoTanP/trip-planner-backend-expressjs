@@ -245,7 +245,7 @@ Examples:
 - `auth` owns tokens and sessions.
 - `auth/providers` owns OAuth credential verification.
 - `trips` owns trip access and trip lifecycle.
-- `itinerary` owns days and activities.
+- `itinerary` owns flat timeline items and reorder behavior.
 - `places` owns place records and provider normalization.
 - `notifications` owns notification read state and delivery contracts.
 
@@ -276,6 +276,7 @@ Before considering AI-generated code complete, verify:
 - Inputs are validated with Zod.
 - Errors use typed error classes.
 - User-facing messages use localization keys or module-owned templates.
+- Notification persistence stores localization codes and params, not rendered copy.
 - Responses use response helpers.
 - API shape changes update `src/api/contracts/v1.ts` and the synced frontend contract.
 - Controllers serialize records into contract DTOs instead of returning raw Prisma relation graphs.
@@ -293,11 +294,12 @@ AI agents changing the trip editor backend must:
 - Keep trip editor writes behind `TripsService`, `ItineraryService`, or `PlacesService`.
 - Treat `ItineraryItem` as a trip-scoped first-class entity with direct `tripId`.
 - Keep day/date/location grouping presentation-only unless a future ADR explicitly reopens the decision.
-- Keep compatibility aliases for legacy day routes short-lived and documented.
+- Do not reintroduce `TripDay`, `legacyDayId`, day-based routes, or day-target comment enums.
 - Validate reorder payload ownership before transactional writes.
-- Use stable spaced `sortOrder`, row `version`, optional `expectedVersion`, and `clientMutationId` for optimistic/realtime-safe mutations.
+- Use intent-based reorder payloads. Clients send the moved item and neighbor IDs; the backend computes sparse `sortOrder` and rebalances only when necessary.
+- Use stable spaced `sortOrder`, row `version`, optional `expectedVersion`, `clientMutationId`, and `ClientMutation` records for optimistic/realtime-safe mutations.
 - Serialize trip detail responses through `trip.serializer.ts` and keep them metadata-only.
-- Return itinerary, notes, places, routes, collaborators, and expenses through granular endpoints.
+- Return itinerary, generic notes, comments, places, routes, collaborators, and expenses through granular endpoints. Cursor paginate large collaborative resources.
 - Update `src/api/contracts/v1.ts` and sync the frontend contract after API shape changes.
 - Add provider configuration to `src/config/env.ts`, `.env.example`, and Docker compose.
 
@@ -307,5 +309,7 @@ AI agents must not:
 - Let websocket or future realtime handlers bypass permission checks.
 - Move itinerary items across trips.
 - Reintroduce required `dayId` ownership for itinerary items.
+- Recreate `Destination` as an itinerary-location entity.
+- Recreate `TripNote` or `ItineraryNote`; notes attach through `targetEntityType` and `targetEntityId`.
 - Couple place search to a single external provider in controllers.
 - Store route geometry as the source of truth for place coordinates.

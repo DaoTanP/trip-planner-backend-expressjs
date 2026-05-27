@@ -56,12 +56,11 @@ const enMessages = {
 
   'resources.activity': 'Activity',
   'resources.itineraryItem': 'Itinerary item',
-  'resources.itineraryDay': 'Itinerary day',
   'resources.notification': 'Notification',
   'resources.place': 'Place',
   'resources.resource': 'Resource',
   'resources.trip': 'Trip',
-  'resources.tripNote': 'Trip note',
+  'resources.note': 'Note',
   'resources.user': 'User',
 
   'validation.custom.invalid': 'Invalid input',
@@ -151,12 +150,11 @@ const _legacyEsMessages: Partial<Record<MessageKey, string>> = {
 
   'resources.activity': 'Actividad',
   'resources.itineraryItem': 'Elemento de itinerario',
-  'resources.itineraryDay': 'Dia de itinerario',
   'resources.notification': 'Notificacion',
   'resources.place': 'Lugar',
   'resources.resource': 'Recurso',
   'resources.trip': 'Viaje',
-  'resources.tripNote': 'Nota de viaje',
+  'resources.note': 'Nota',
   'resources.user': 'Usuario',
 
   'validation.custom.invalid': 'Entrada invalida',

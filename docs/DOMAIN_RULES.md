@@ -6,11 +6,11 @@ This document defines stable business rules and domain invariants for the Trip P
 
 - User: a person with an account.
 - Trip: a planned travel experience owned by exactly one user.
-- Destination: a city, region, or place included in a trip.
 - Itinerary item: a planned stop, activity, reminder, booking, lodging, transport leg, or flexible idea directly inside a trip timeline.
 - Presentation group: an optional UI grouping such as date, location, section, morning/evening, or custom label.
-- Trip note: free-form planning text attached to a trip.
-- Place: a reusable location record that may be attached to destinations or itinerary items.
+- Note: free-form planning text attached to a trip-scoped target entity.
+- Place: a reusable location record that may be attached to itinerary items and route segments.
+- Route segment: cached provider route geometry between two places for a travel mode.
 - Collaborator: a user or invited email with access to a trip.
 - Owner: the user with ultimate control over a trip.
 - Notification: a user-facing message about trip activity or system events.
@@ -23,10 +23,8 @@ Core entities:
 - User
 - Trip
 - TripCollaborator
-- Destination
 - ItineraryItem
-- TripNote
-- ItineraryNote
+- Note
 - Place
 - RouteSegment
 - Budget
@@ -40,14 +38,14 @@ Entity relationships:
 
 ```text
 User owns many Trips
-Trip has many Destinations
 Trip has many ItineraryItems
 ItineraryItem may reference one Place
 ItineraryItem may reference one RouteSegment
-Trip has many TripNotes
-ItineraryItem has many ItineraryNotes
+RouteSegment references from/to Places
+Trip has many Notes
+Notes target trip-scoped entities by targetEntityType and targetEntityId
 Trip has many Collaborators
-Trip and ItineraryItem may have Comments
+Comments target trip-scoped entities by targetEntityType and targetEntityId
 User has many Notifications
 ```
 
@@ -104,7 +102,7 @@ Pending invited email can access trip data
 Roles:
 
 - OWNER: full control, including delete and collaborator management.
-- EDITOR: can modify itinerary, destinations, itinerary items, comments, and trip details.
+- EDITOR: can modify itinerary items, route-linked planning data, comments, and trip details.
 - VIEWER: can read shared trip data and add comments only if the product explicitly allows it.
 
 Baseline permission matrix:
@@ -152,6 +150,7 @@ Completed trip silently rewritten by AI generation
 - An itinerary item must not require a trip day to exist.
 - An itinerary item may reference a place, but manual/flexible items without a place are valid.
 - Item order is scoped to the trip timeline through stable spaced `sortOrder` values.
+- Reorder intent is scoped to one trip and uses the moved item plus before/after neighbor IDs; clients must not rewrite entire timeline order arrays.
 - Presentation grouping by date, location, or custom label is computed by clients and must not become a persistence invariant.
 - Item status must reflect planning state: PLANNED, BOOKED, COMPLETED, or CANCELLED.
 - Item cost and duration values must not be negative.
@@ -207,14 +206,14 @@ Itinerary item ends before it starts
 - Unsupported request locales fall back to the default locale rather than failing unrelated workflows.
 - Validation messages, notification templates, email templates, and operational error messages must be generated from localization keys.
 - Business services should pass message keys and parameters, not final user-facing prose.
-- Notification records store the rendered text plus template metadata for auditability and future re-rendering decisions.
+- Notification records store `notificationCode` and `params`; frontends and delivery workers render localized copy at display/delivery time.
 
 Valid:
 
 ```text
 User locale = es
-Notification template = TRIP_INVITE
-Rendered notification title = Invitacion de viaje
+Notification notificationCode = TRIP_INVITE
+Notification params = { "tripTitle": "Madrid" }
 ```
 
 Invalid:
@@ -232,7 +231,7 @@ Notification job chooses a hardcoded email subject without recipient locale
 - Notifications should be idempotent when generated from retryable jobs.
 - Read state belongs to the notification recipient.
 - Notification payloads must not contain secrets or sensitive token data.
-- Notification content must come from localized templates.
+- Notification content must come from localized templates keyed by notification code.
 
 Valid:
 
@@ -258,7 +257,7 @@ Rules:
 - AI must not overwrite confirmed or booked itinerary items without explicit user confirmation.
 - AI output must be validated like user input.
 - AI-generated itinerary items must belong directly to the target trip.
-- AI must respect trip date range, timezone, budget, destination, and collaborator permissions.
+- AI must respect trip date range, timezone, budget, normalized places, and collaborator permissions.
 - AI should preserve user-authored notes unless asked to replace them.
 - AI recommendations must be traceable as AI-generated when stored.
 
@@ -301,15 +300,16 @@ Business validation belongs in services when it depends on database state.
 - API v1 response shapes are stable contracts, not incidental controller output.
 - Frontend-facing DTOs should use strings for dates and timestamps.
 - Prisma enums are serialized as their API enum values, such as `DRAFT` or `PRIVATE`.
-- Pagination metadata must include `page`, `limit`, `total`, `totalPages`, `hasNextPage`, and `hasPreviousPage`.
+- Page-number pagination metadata must include `page`, `limit`, `total`, `totalPages`, `hasNextPage`, and `hasPreviousPage`.
+- Cursor pagination metadata must include `limit`, `nextCursor`, and `hasNextPage`.
 - Error codes must remain stable once released; add new codes rather than changing existing meanings.
 
 ## 13. Data Consistency Rules
 
 - Itinerary items must not be moved across trips without explicit handling.
 - Collaborator permissions must be checked against the target trip.
-- Comments must reference a target consistent with their trip.
-- Destination and place links must remain optional but valid when present.
+- Comments must reference a trip-scoped `targetEntityType` and `targetEntityId` consistent with their trip.
+- Place and route links must remain optional where the model allows them, but valid when present.
 - Refresh token reuse must revoke the token family.
 - Logging out revokes the presented refresh token and clears browser session cookies.
 - Disabled users cannot obtain new sessions through password or OAuth login.
@@ -337,9 +337,10 @@ Current policy:
 
 - Trips use `ARCHIVED` for non-destructive removal from active views.
 - Notifications use `ARCHIVED` for hidden notifications.
+- Collaborative trip-scoped entities such as itinerary items, notes, comments, route segments, expenses, expense categories, and collaborators use `deletedAt` tombstones.
 - Refresh tokens use `revokedAt`.
 
-Future soft delete fields may be added when recovery, audit, or compliance requires them. Do not add soft delete to every table by default.
+Do not add soft delete to every table by default; use tombstones where collaboration, sync, recovery, or audit needs justify them.
 
 ## 16. Auditability Considerations
 

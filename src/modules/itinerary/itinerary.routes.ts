@@ -5,7 +5,6 @@ import { validateRequest } from '@/common/middleware/validate-request.middleware
 import { asyncHandler } from '@/common/utils/async-handler.js';
 import { itineraryController } from '@/modules/itinerary/itinerary.controller.js';
 import {
-  createLegacyDayItineraryItemSchema,
   createTripItineraryItemSchema,
   itineraryItemIdSchema,
   listItinerarySchema,
@@ -44,33 +43,6 @@ itineraryRouter.patch(
 );
 itineraryRouter.delete(
   '/itinerary-items/:itemId',
-  validateRequest(itineraryItemIdSchema),
-  asyncHandler(itineraryController.deleteItineraryItem)
-);
-
-// Compatibility aliases for pre-timeline clients. They create a flat item and keep legacyDayId.
-itineraryRouter.post(
-  '/trip-days/:dayId/itinerary-items',
-  validateRequest(createLegacyDayItineraryItemSchema),
-  asyncHandler(itineraryController.createLegacyDayItineraryItem)
-);
-itineraryRouter.patch(
-  '/trips/:tripId/itinerary-items/reorder',
-  validateRequest(reorderItineraryItemsSchema),
-  asyncHandler(itineraryController.reorderItineraryItems)
-);
-itineraryRouter.post(
-  '/days/:dayId/activities',
-  validateRequest(createLegacyDayItineraryItemSchema),
-  asyncHandler(itineraryController.createLegacyDayItineraryItem)
-);
-itineraryRouter.patch(
-  '/activities/:itemId',
-  validateRequest(updateItineraryItemSchema),
-  asyncHandler(itineraryController.updateItineraryItem)
-);
-itineraryRouter.delete(
-  '/activities/:itemId',
   validateRequest(itineraryItemIdSchema),
   asyncHandler(itineraryController.deleteItineraryItem)
 );

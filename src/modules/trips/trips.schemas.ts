@@ -21,12 +21,6 @@ export const tripIdSchema = z.object({
   })
 });
 
-export const tripNoteIdSchema = z.object({
-  params: z.object({
-    noteId: uuidParam
-  })
-});
-
 export const createTripSchema = z.object({
   body: z
     .object({
@@ -65,40 +59,19 @@ export const updateTripSchema = z.object({
     })
 });
 
-export const createTripNoteSchema = z.object({
+export const listTripExpensesSchema = z.object({
   params: z.object({
     tripId: uuidParam
   }),
-  body: z.object({
-    title: z.string().trim().min(1).max(160).optional(),
-    body: z.string().trim().min(1).max(10000),
-    order: z.number().int().min(0).default(0),
-    pinned: z.boolean().default(false),
-    metadata: z.record(z.unknown()).optional(),
-    clientMutationId: z.string().trim().max(120).optional()
-  })
-});
-
-export const updateTripNoteSchema = z.object({
-  params: z.object({
-    noteId: uuidParam
-  }),
-  body: z.object({
-    title: z.string().trim().min(1).max(160).nullable().optional(),
-    body: z.string().trim().min(1).max(10000).optional(),
-    order: z.number().int().min(0).optional(),
-    pinned: z.boolean().optional(),
-    metadata: z.record(z.unknown()).nullable().optional(),
-    expectedVersion: z.number().int().positive().optional(),
-    clientMutationId: z.string().trim().max(120).optional()
+  query: z.object({
+    cursor: z.string().trim().optional(),
+    limit: z.coerce.number().int().positive().max(100).default(50)
   })
 });
 
 export type ListTripsQuery = z.infer<typeof listTripsSchema>['query'];
 export type TripIdParams = z.infer<typeof tripIdSchema>['params'];
-export type TripNoteIdParams = z.infer<typeof tripNoteIdSchema>['params'];
 export type CreateTripInput = z.infer<typeof createTripSchema>['body'];
 export type UpdateTripInput = z.infer<typeof updateTripSchema>['body'];
-export type CreateTripNoteInput = z.infer<typeof createTripNoteSchema>['body'];
-export type CreateTripNoteParams = z.infer<typeof createTripNoteSchema>['params'];
-export type UpdateTripNoteInput = z.infer<typeof updateTripNoteSchema>['body'];
+export type ListTripExpensesParams = z.infer<typeof listTripExpensesSchema>['params'];
+export type ListTripExpensesQuery = z.infer<typeof listTripExpensesSchema>['query'];

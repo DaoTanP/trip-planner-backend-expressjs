@@ -1,5 +1,11 @@
-import type { Prisma, Trip } from '@prisma/client';
+import type { Budget, Expense, ExpenseCategory, Prisma, Trip } from '@prisma/client';
 
+import {
+  buildCursorPage,
+  decodeCursor,
+  encodeCursor,
+  type CursorPage
+} from '@/common/utils/cursor-pagination.js';
 import { prisma } from '@/prisma/client.js';
 
 export type TripListFilters = {
@@ -7,6 +13,35 @@ export type TripListFilters = {
   page: number;
   limit: number;
 };
+
+type CreatedAtCursor = {
+  createdAt: string;
+  id: string;
+};
+
+const createdAtCursorWhere = (cursor: CreatedAtCursor | null): Prisma.ExpenseWhereInput =>
+  cursor
+    ? {
+        OR: [
+          { createdAt: { gt: new Date(cursor.createdAt) } },
+          {
+            createdAt: new Date(cursor.createdAt),
+            id: { gt: cursor.id }
+          }
+        ]
+      }
+    : {};
+
+const expenseOrderBy = [
+  { createdAt: 'asc' },
+  { id: 'asc' }
+] satisfies Prisma.ExpenseOrderByWithRelationInput[];
+
+const expenseCursor = (expense: Expense): string =>
+  encodeCursor({
+    createdAt: expense.createdAt.toISOString(),
+    id: expense.id
+  });
 
 export class TripsRepository {
   async findForUser(userId: string, filters: TripListFilters) {
@@ -18,7 +53,8 @@ export class TripsRepository {
           collaborators: {
             some: {
               userId,
-              acceptedAt: { not: null }
+              acceptedAt: { not: null },
+              deletedAt: null
             }
           }
         }
@@ -32,19 +68,28 @@ export class TripsRepository {
         skip: (filters.page - 1) * filters.limit,
         take: filters.limit,
         include: {
-          destinations: {
-            orderBy: { order: 'asc' }
-          },
           _count: {
             select: {
-              collaborators: true,
+              collaborators: {
+                where: {
+                  deletedAt: null
+                }
+              },
               itineraryItems: {
                 where: {
                   deletedAt: null
                 }
               },
-              notes: true,
-              routeSegments: true
+              notes: {
+                where: {
+                  deletedAt: null
+                }
+              },
+              routeSegments: {
+                where: {
+                  deletedAt: null
+                }
+              }
             }
           }
         }
@@ -72,10 +117,10 @@ export class TripsRepository {
             email: true
           }
         },
-        destinations: {
-          orderBy: { order: 'asc' }
-        },
         collaborators: {
+          where: {
+            deletedAt: null
+          },
           include: {
             user: {
               select: {
@@ -89,14 +134,26 @@ export class TripsRepository {
         },
         _count: {
           select: {
-            collaborators: true,
+            collaborators: {
+              where: {
+                deletedAt: null
+              }
+            },
             itineraryItems: {
               where: {
                 deletedAt: null
               }
             },
-            notes: true,
-            routeSegments: true
+            notes: {
+              where: {
+                deletedAt: null
+              }
+            },
+            routeSegments: {
+              where: {
+                deletedAt: null
+              }
+            }
           }
         }
       }
@@ -113,7 +170,8 @@ export class TripsRepository {
             collaborators: {
               some: {
                 userId,
-                acceptedAt: { not: null }
+                acceptedAt: { not: null },
+                deletedAt: null
               }
             }
           }
@@ -125,7 +183,8 @@ export class TripsRepository {
         collaborators: {
           where: {
             userId,
-            acceptedAt: { not: null }
+            acceptedAt: { not: null },
+            deletedAt: null
           },
           select: {
             role: true
@@ -142,22 +201,9 @@ export class TripsRepository {
     });
   }
 
-  createNote(data: Prisma.TripNoteUncheckedCreateInput) {
-    return prisma.tripNote.create({
-      data
-    });
-  }
-
-  listNotes(tripId: string) {
-    return prisma.tripNote.findMany({
-      where: { tripId },
-      orderBy: [{ pinned: 'desc' }, { order: 'asc' }, { createdAt: 'asc' }]
-    });
-  }
-
   listCollaborators(tripId: string) {
     return prisma.tripCollaborator.findMany({
-      where: { tripId },
+      where: { tripId, deletedAt: null },
       include: {
         user: {
           select: {
@@ -172,46 +218,40 @@ export class TripsRepository {
     });
   }
 
-  getExpenses(tripId: string) {
+  getExpenses(
+    tripId: string,
+    filters: { cursor?: string | undefined; limit: number }
+  ): Promise<{
+    budget: Budget | null;
+    categories: ExpenseCategory[];
+    expenses: CursorPage<Expense>;
+  }> {
     return prisma.$transaction(async (tx) => {
+      const cursor = decodeCursor<CreatedAtCursor>(filters.cursor);
       const [budget, categories, expenses] = await Promise.all([
         tx.budget.findUnique({
           where: { tripId }
         }),
         tx.expenseCategory.findMany({
-          where: { tripId },
+          where: { tripId, deletedAt: null },
           orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }]
         }),
         tx.expense.findMany({
           where: {
             tripId,
-            deletedAt: null
+            deletedAt: null,
+            ...createdAtCursorWhere(cursor)
           },
-          orderBy: [{ spentAt: 'asc' }, { createdAt: 'asc' }]
+          orderBy: expenseOrderBy,
+          take: filters.limit + 1
         })
       ]);
 
-      return { budget, categories, expenses };
-    });
-  }
-
-  findNoteTripId(noteId: string): Promise<{ tripId: string; version: number } | null> {
-    return prisma.tripNote.findUnique({
-      where: { id: noteId },
-      select: { tripId: true, version: true }
-    });
-  }
-
-  updateNote(id: string, data: Prisma.TripNoteUpdateInput) {
-    return prisma.tripNote.update({
-      where: { id },
-      data
-    });
-  }
-
-  deleteNote(id: string) {
-    return prisma.tripNote.delete({
-      where: { id }
+      return {
+        budget,
+        categories,
+        expenses: buildCursorPage(expenses, filters.limit, expenseCursor)
+      };
     });
   }
 

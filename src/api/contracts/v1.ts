@@ -45,8 +45,14 @@ export type PaginationMeta = {
   hasPreviousPage: boolean;
 };
 
+export type CursorPaginationMeta = {
+  limit: number;
+  nextCursor: string | null;
+  hasNextPage: boolean;
+};
+
 export type ApiMeta = {
-  pagination?: PaginationMeta;
+  pagination?: PaginationMeta | CursorPaginationMeta;
   requestId?: string;
 };
 
@@ -152,7 +158,6 @@ export type TripSummaryDto = {
   visibility: TripVisibilityDto;
   status: TripStatusDto;
   coverImageUrl: string | null;
-  destinationNames: string[];
   collaboratorCount: number;
   itineraryItemCount: number;
   noteCount: number;
@@ -170,6 +175,10 @@ export type TripCollaboratorDto = {
   id: string;
   role: 'OWNER' | 'EDITOR' | 'VIEWER';
   acceptedAt: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
   user: {
     id: string;
     name: string;
@@ -245,25 +254,31 @@ export type RouteSegmentDto = {
   fromPlaceId: string;
   toPlaceId: string;
   provider: RouteProviderDto;
+  travelMode: string;
+  routeProfileHash: string;
   polyline: string;
   distanceMeters: number | null;
   durationSeconds: number | null;
   metadata: Record<string, unknown> | null;
+  version: number;
+  expiresAt: string | null;
   createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
 };
 
-export type TripNoteDto = {
+export type NoteDto = {
   id: string;
   tripId: string;
   authorId: string | null;
-  title: string | null;
+  targetEntityType: string;
+  targetEntityId: string;
   body: string;
-  order: number;
-  pinned: boolean;
   metadata: Record<string, unknown> | null;
   version: number;
   createdAt: string;
   updatedAt: string;
+  deletedAt: string | null;
 };
 
 export type BudgetDto = {
@@ -284,8 +299,10 @@ export type ExpenseCategoryDto = {
   color: string | null;
   sortOrder: number;
   metadata: Record<string, unknown> | null;
+  version: number;
   createdAt: string;
   updatedAt: string;
+  deletedAt: string | null;
 };
 
 export type ExpenseDto = {
@@ -311,6 +328,20 @@ export type TripExpensesDto = {
   budget: BudgetDto | null;
   categories: ExpenseCategoryDto[];
   expenses: ExpenseDto[];
+};
+
+export type CommentDto = {
+  id: string;
+  tripId: string;
+  authorId: string;
+  targetEntityType: string;
+  targetEntityId: string;
+  body: string;
+  metadata: Record<string, unknown> | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
 };
 
 export type ListTripsQueryDto = {
@@ -385,28 +416,29 @@ export type UpdateItineraryItemRequestDto = Partial<{
 }>;
 
 export type ReorderItineraryItemsRequestDto = {
-  updates: Array<{
-    itemId: string;
-    sortOrder: number;
-    expectedVersion?: number;
-  }>;
+  itemId: string;
+  beforeItemId?: string | null;
+  afterItemId?: string | null;
+  expectedVersion?: number;
   clientMutationId?: string;
 };
 
-export type CreateTripNoteRequestDto = {
-  title?: string;
-  body: string;
-  order?: number;
-  pinned?: boolean;
-  metadata?: Record<string, unknown>;
+export type ReorderItineraryItemsResponseDto = {
+  item: ItineraryItemDto;
+  affectedItems?: ItineraryItemDto[];
   clientMutationId?: string;
 };
 
-export type UpdateTripNoteRequestDto = Partial<{
-  title: string | null;
+export type CreateNoteRequestDto = {
+  targetEntityType?: string;
+  targetEntityId?: string;
   body: string;
-  order: number;
-  pinned: boolean;
+  metadata?: Record<string, unknown> | null;
+  clientMutationId?: string;
+};
+
+export type UpdateNoteRequestDto = Partial<{
+  body: string;
   metadata: Record<string, unknown> | null;
   expectedVersion: number;
   clientMutationId: string;
@@ -416,6 +448,21 @@ export type ListPlacesQueryDto = {
   q?: string;
   countryCode?: string;
   limit?: number;
+};
+
+export type CursorListQueryDto = {
+  cursor?: string;
+  limit?: number;
+};
+
+export type ListNotesQueryDto = CursorListQueryDto & {
+  targetEntityType?: string;
+  targetEntityId?: string;
+};
+
+export type ListCommentsQueryDto = CursorListQueryDto & {
+  targetEntityType?: string;
+  targetEntityId?: string;
 };
 
 export type SearchPlacesQueryDto = ListPlacesQueryDto & {
@@ -512,7 +559,11 @@ export type ApiV1Paths = {
   };
   '/trips/{tripId}/itinerary': {
     get: {
-      response: ApiSuccessResponse<{ items: ItineraryItemDto[] }>;
+      query: CursorListQueryDto;
+      response: ApiSuccessResponse<
+        { items: ItineraryItemDto[] },
+        { pagination: CursorPaginationMeta }
+      >;
     };
     post: {
       request: CreateItineraryItemRequestDto;
@@ -522,7 +573,7 @@ export type ApiV1Paths = {
   '/trips/{tripId}/itinerary/reorder': {
     patch: {
       request: ReorderItineraryItemsRequestDto;
-      response: ApiSuccessResponse<{ items: ItineraryItemDto[]; clientMutationId?: string }>;
+      response: ApiSuccessResponse<ReorderItineraryItemsResponseDto>;
     };
   };
   '/itinerary-items/{itemId}': {
@@ -541,17 +592,18 @@ export type ApiV1Paths = {
   };
   '/trips/{tripId}/notes': {
     get: {
-      response: ApiSuccessResponse<{ notes: TripNoteDto[] }>;
+      query: ListNotesQueryDto;
+      response: ApiSuccessResponse<{ notes: NoteDto[] }, { pagination: CursorPaginationMeta }>;
     };
     post: {
-      request: CreateTripNoteRequestDto;
-      response: ApiSuccessResponse<{ note: TripNoteDto; clientMutationId?: string }>;
+      request: CreateNoteRequestDto;
+      response: ApiSuccessResponse<{ note: NoteDto; clientMutationId?: string }>;
     };
   };
-  '/trip-notes/{noteId}': {
+  '/notes/{noteId}': {
     patch: {
-      request: UpdateTripNoteRequestDto;
-      response: ApiSuccessResponse<{ note: TripNoteDto; clientMutationId?: string }>;
+      request: UpdateNoteRequestDto;
+      response: ApiSuccessResponse<{ note: NoteDto; clientMutationId?: string }>;
     };
     delete: {
       response: void;
@@ -559,7 +611,11 @@ export type ApiV1Paths = {
   };
   '/trips/{tripId}/routes': {
     get: {
-      response: ApiSuccessResponse<{ routes: RouteSegmentDto[] }>;
+      query: CursorListQueryDto;
+      response: ApiSuccessResponse<
+        { routes: RouteSegmentDto[] },
+        { pagination: CursorPaginationMeta }
+      >;
     };
   };
   '/trips/{tripId}/collaborators': {
@@ -569,7 +625,17 @@ export type ApiV1Paths = {
   };
   '/trips/{tripId}/expenses': {
     get: {
-      response: ApiSuccessResponse<TripExpensesDto>;
+      query: CursorListQueryDto;
+      response: ApiSuccessResponse<TripExpensesDto, { pagination: CursorPaginationMeta }>;
+    };
+  };
+  '/trips/{tripId}/comments': {
+    get: {
+      query: ListCommentsQueryDto;
+      response: ApiSuccessResponse<
+        { comments: CommentDto[] },
+        { pagination: CursorPaginationMeta }
+      >;
     };
   };
   '/places': {

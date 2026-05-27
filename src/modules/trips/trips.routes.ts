@@ -5,8 +5,8 @@ import { validateRequest } from '@/common/middleware/validate-request.middleware
 import { asyncHandler } from '@/common/utils/async-handler.js';
 import { tripsController } from '@/modules/trips/trips.controller.js';
 import {
-  createTripNoteSchema,
   createTripSchema,
+  listTripExpensesSchema,
   listTripsSchema,
   tripIdSchema,
   updateTripSchema
@@ -25,22 +25,12 @@ tripsRouter.patch(
 );
 tripsRouter.delete('/:tripId', validateRequest(tripIdSchema), asyncHandler(tripsController.delete));
 tripsRouter.get(
-  '/:tripId/notes',
-  validateRequest(tripIdSchema),
-  asyncHandler(tripsController.listNotes)
-);
-tripsRouter.post(
-  '/:tripId/notes',
-  validateRequest(createTripNoteSchema),
-  asyncHandler(tripsController.createNote)
-);
-tripsRouter.get(
   '/:tripId/collaborators',
   validateRequest(tripIdSchema),
   asyncHandler(tripsController.listCollaborators)
 );
 tripsRouter.get(
   '/:tripId/expenses',
-  validateRequest(tripIdSchema),
+  validateRequest(listTripExpensesSchema),
   asyncHandler(tripsController.getExpenses)
 );

@@ -1,21 +1,30 @@
-import type { NotificationType } from '@prisma/client';
-
 import type { Locale } from '@/common/localization/locales.js';
 import { DEFAULT_TIMEZONE, normalizeTimeZone } from '@/common/localization/locales.js';
 import type { MessageKey } from '@/common/localization/messages.js';
 import { translate, type MessageParams } from '@/common/localization/translator.js';
 import { formatDateTimeForLocale } from '@/common/utils/date.js';
 
+export const notificationCodes = [
+  'TRIP_INVITE',
+  'COMMENT_MENTION',
+  'ITINERARY_UPDATE',
+  'SYSTEM'
+] as const;
+
+export type NotificationCode = (typeof notificationCodes)[number];
+
 export type NotificationTemplateParams = Record<
   string,
   string | number | boolean | Date | null | undefined
 >;
 
+export type SerializedNotificationParams = Record<string, string | number | boolean | null>;
+
 export type NotificationTemplateData = {
-  template: NotificationType;
+  notificationCode: NotificationCode;
   locale: Locale;
   timezone: string;
-  params: Record<string, string | number | boolean | null>;
+  params: SerializedNotificationParams;
 };
 
 export type RenderedNotificationTemplate = {
@@ -69,7 +78,7 @@ const notificationTemplates = {
     emailTextKey: 'emails.SYSTEM.text',
     emailHtmlKey: 'emails.SYSTEM.html'
   }
-} satisfies Record<NotificationType, NotificationTemplateDefinition>;
+} satisfies Record<NotificationCode, NotificationTemplateDefinition>;
 
 const escapeHtml = (value: string): string =>
   value
@@ -87,16 +96,17 @@ const buildTemplateParams = (
   const normalizedParams: MessageParams = {};
 
   for (const [key, value] of Object.entries(params ?? {})) {
-    normalizedParams[key] = value instanceof Date ? formatDateTimeForLocale(value, { locale, timezone }) : value;
+    normalizedParams[key] =
+      value instanceof Date ? formatDateTimeForLocale(value, { locale, timezone }) : value;
   }
 
   return normalizedParams;
 };
 
-const serializeTemplateParams = (
+export const serializeNotificationParams = (
   params: NotificationTemplateParams | undefined
-): NotificationTemplateData['params'] => {
-  const serialized: NotificationTemplateData['params'] = {};
+): SerializedNotificationParams => {
+  const serialized: SerializedNotificationParams = {};
 
   for (const [key, value] of Object.entries(params ?? {})) {
     if (value === undefined) {
@@ -120,14 +130,14 @@ const escapeTemplateParams = (params: MessageParams): MessageParams => {
 };
 
 export const renderNotificationTemplate = (
-  type: NotificationType,
+  notificationCode: NotificationCode,
   options: {
     locale: Locale;
     timezone?: string;
     params?: NotificationTemplateParams;
   }
 ): RenderedNotificationTemplate => {
-  const template = notificationTemplates[type];
+  const template = notificationTemplates[notificationCode];
   const timezone = normalizeTimeZone(options.timezone) ?? DEFAULT_TIMEZONE;
   const params = buildTemplateParams(options.params, options.locale, timezone);
 
@@ -135,23 +145,23 @@ export const renderNotificationTemplate = (
     title: translate(template.titleKey, { locale: options.locale, params }),
     body: translate(template.bodyKey, { locale: options.locale, params }),
     data: {
-      template: type,
+      notificationCode,
       locale: options.locale,
       timezone,
-      params: serializeTemplateParams(options.params)
+      params: serializeNotificationParams(options.params)
     }
   };
 };
 
 export const renderNotificationEmailTemplate = (
-  type: NotificationType,
+  notificationCode: NotificationCode,
   options: {
     locale: Locale;
     timezone?: string;
     params?: NotificationTemplateParams;
   }
 ): RenderedNotificationEmailTemplate => {
-  const template = notificationTemplates[type];
+  const template = notificationTemplates[notificationCode];
   const timezone = normalizeTimeZone(options.timezone) ?? DEFAULT_TIMEZONE;
   const params = buildTemplateParams(options.params, options.locale, timezone);
 

@@ -1,4 +1,4 @@
-import type { NotificationType, Prisma } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 
 import { NotFoundError } from '@/common/errors/not-found-error.js';
 import { enqueueNotificationDelivery } from '@/jobs/notification.queue.js';
@@ -8,23 +8,20 @@ import {
 } from '@/modules/notifications/notifications.repository.js';
 import type { ListNotificationsQuery } from '@/modules/notifications/notifications.schemas.js';
 import {
-  renderNotificationTemplate,
+  serializeNotificationParams,
+  type NotificationCode,
   type NotificationTemplateParams
 } from '@/modules/notifications/notifications.templates.js';
-import { usersService, type UsersService } from '@/modules/users/users.service.js';
 
 export type CreateNotificationFromTemplateInput = {
   userId: string;
-  type: NotificationType;
+  notificationCode: NotificationCode;
   tripId?: string;
   params?: NotificationTemplateParams;
 };
 
 export class NotificationsService {
-  constructor(
-    private readonly repository: NotificationsRepository = notificationsRepository,
-    private readonly users: UsersService = usersService
-  ) {}
+  constructor(private readonly repository: NotificationsRepository = notificationsRepository) {}
 
   list(userId: string, query: ListNotificationsQuery) {
     const filters: { status?: ListNotificationsQuery['status']; limit: number } = {
@@ -39,33 +36,10 @@ export class NotificationsService {
   }
 
   async createFromTemplate(input: CreateNotificationFromTemplateInput) {
-    const preferences = await this.users.getLocalizationPreferences(input.userId);
-    const rendered = renderNotificationTemplate(
-      input.type,
-      input.params
-        ? {
-            locale: preferences.locale,
-            timezone: preferences.timezone,
-            params: input.params
-          }
-        : {
-            locale: preferences.locale,
-            timezone: preferences.timezone
-          }
-    );
-    const templateData: Prisma.InputJsonObject = {
-      template: rendered.data.template,
-      locale: rendered.data.locale,
-      timezone: rendered.data.timezone,
-      params: rendered.data.params
-    };
-
     const data: Prisma.NotificationUncheckedCreateInput = {
       userId: input.userId,
-      type: input.type,
-      title: rendered.title,
-      body: rendered.body,
-      data: templateData
+      notificationCode: input.notificationCode,
+      params: serializeNotificationParams(input.params)
     };
 
     if (input.tripId !== undefined) {

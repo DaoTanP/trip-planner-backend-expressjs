@@ -258,6 +258,7 @@ Use:
 - `sendSuccess`
 - `sendCreated`
 - `sendPaginated`
+- `sendCursorPaginated`
 - `sendNoContent`
 
 Do not call `res.json` directly in controllers unless adding a new response helper is clearly unnecessary for a one-off internal endpoint.
@@ -321,6 +322,7 @@ Rules:
 - Shared scalar validators for locale, timezone, and date-only strings live in `src/common/localization/schemas.ts`.
 - Request locale comes from `localeMiddleware`; do not parse `Accept-Language` inside controllers or services.
 - Module-specific notification and email templates belong to the module that owns the event.
+- Persist notification records as `notificationCode` plus `params`; do not store rendered notification title/body text.
 - Persist user locale and timezone on `User`; use `UsersService` to read another user's preferences.
 
 Forbidden:
@@ -564,13 +566,21 @@ const secret = env.JWT_ACCESS_SECRET;
 ## 22. Trip Editor API Conventions
 
 - Trip detail responses must stay metadata-only and be serialized through API serializers, not returned as raw Prisma graphs.
-- Itinerary items are first-class trip-scoped records. New code must use `tripId`, `placeId`, `routeSegmentId`, and `sortOrder`, not a required `dayId`.
-- Do not add hard structural `TripDay` ownership. Date/day/location grouping is presentation-only unless a future ADR explicitly changes this.
+- Itinerary items are first-class trip-scoped records. Code must use `tripId`, `placeId`, `routeSegmentId`, and `sortOrder`, not `dayId`.
+- Do not add `TripDay`, `legacyDayId`, day-target comments, or day-based route aliases. Date/day/location grouping is presentation-only unless a future ADR explicitly changes this.
 - Reorder endpoints must run in transactions.
-- Reorder services must validate that every item in the payload belongs to the target trip.
+- Reorder APIs must be intent based: clients send `itemId`, optional `beforeItemId`, optional `afterItemId`, `expectedVersion`, and `clientMutationId`; the backend computes `sortOrder`.
+- Reorder services must validate that the moved item and neighbor IDs belong to the target trip.
 - Use stable spaced `sortOrder` values (`1024`, `2048`, `3072`) and avoid sequential indexes that force mass rewrites.
+- Rebalance sparse order only when no gap remains between neighbors.
 - Use `clientMutationId` and row `version`/`expectedVersion` on optimistic APIs when a frontend interaction may also receive a future realtime event.
+- Persist `clientMutationId` through `ClientMutation` for collaborative entities when the mutation can be replayed or echoed by future realtime/offline flows.
 - Keep place provider integration behind `places.service.ts` or provider adapters. Controllers must not call Google, Mapbox, or OSM directly.
 - Route geometry belongs in `RouteSegment`; do not duplicate polylines across itinerary item payloads in new code.
+- Route cache identity must include provider, from place, to place, travel mode, and route profile hash.
+- Notes are generic collaboration records with `targetEntityType` and `targetEntityId`; do not add new `TripNote` or `ItineraryNote` tables.
+- Comments must use generic `targetEntityType` and `targetEntityId`, not feature-specific nullable target columns.
+- Cursor pagination is required for itinerary items, notes, comments, route segments, and expenses.
+- Do not reintroduce `Destination` for itinerary activity locations; use normalized `Place` records and flat itinerary items.
 - Budget data belongs in normalized `Budget`, `Expense`, and `ExpenseCategory` entities; do not add new trip-level budget JSON.
 - Add new trip editor environment variables to `.env.example`, `docker-compose.yml`, and `src/config/env.ts`.
