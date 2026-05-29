@@ -574,9 +574,11 @@ const secret = env.JWT_ACCESS_SECRET;
 - Use stable spaced `sortOrder` values (`65536`, `131072`, `196608`) and avoid sequential indexes that force mass rewrites.
 - Rebalance sparse order only when no gap remains between neighbors.
 - Use `clientMutationId`, optional `deviceId`, row `version`/`expectedVersion`, and trip `revision` on optimistic APIs when a frontend interaction may also receive a future realtime event.
-- Persist `clientMutationId` through `ClientMutation` for collaborative entities when the mutation can be replayed or echoed by future realtime/offline flows.
+- Mutations that depend on the current trip revision should accept `expectedRevision` and return `REVISION_CONFLICT` with the latest revision details when stale. Do not hide these conflicts as generic validation errors.
+- Persist `clientMutationId` through `ClientMutation` for collaborative entities when the mutation can be replayed or echoed by future realtime/offline flows. Check idempotency before applying replayable writes and return canonical entity state for duplicate client mutation IDs.
 - Append `MutationEvent` and increment `Trip.revision` in the same transaction as trip-affecting writes. Do not create a parallel event-sourced write path.
-- Use `GET /trips/:tripId/mutation-events?afterRevision=...` only as a sync catch-up/debug boundary. Normal reads still come from normalized resource endpoints.
+- Mutation event payloads must be entity patches with stable operation names (`ENTITY_CREATED`, `ENTITY_UPDATED`, `ENTITY_MOVED`, `ENTITY_DELETED`, `ENTITY_REBALANCED`), not giant trip snapshots.
+- Use `GET /trips/:tripId/mutation-events?sinceRevision=...` with `cursor`, `limit`, `latestRevision`, `hasMore`, and `nextCursor` only as a sync catch-up/debug boundary. Normal reads still come from normalized resource endpoints.
 - Keep place provider integration behind `places.service.ts` or provider adapters. Controllers must not call Google, Mapbox, or OSM directly.
 - Route geometry belongs in `RouteSegment`; do not duplicate polylines across itinerary item payloads in new code.
 - Route cache identity must include provider, from place, to place, travel mode, route profile hash, and alternate route index. Use typed columns for departure time, traffic model, expiration, and common routing fields; reserve JSONB metadata for provider-specific payloads.

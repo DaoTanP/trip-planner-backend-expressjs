@@ -9,6 +9,8 @@ export const listMutationEventsSchema = z.object({
   }),
   query: z.object({
     afterRevision: revisionStringSchema.optional(),
+    sinceRevision: revisionStringSchema.optional(),
+    cursor: revisionStringSchema.optional(),
     limit: z.coerce.number().int().positive().max(500).default(100)
   })
 });

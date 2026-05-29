@@ -7,7 +7,11 @@ import {
   type CursorPage
 } from '@/common/utils/cursor-pagination.js';
 import { registerCollaborationEntity } from '@/modules/collaboration/collaboration-entity-registry.js';
-import { appendMutationEvent } from '@/modules/sync/mutation-event-log.js';
+import {
+  appendMutationEvent,
+  createEntityPatchPayload,
+  syncOperations
+} from '@/modules/sync/mutation-event-log.js';
 import { prisma } from '@/prisma/client.js';
 
 type CreatedAtCursor = {
@@ -77,6 +81,31 @@ const noteCursor = (note: Note): string =>
     id: note.id
   });
 
+const notePatchFields = (note: NoteRecord): Prisma.InputJsonObject => ({
+  id: note.id,
+  tripId: note.tripId,
+  authorId: note.authorId,
+  parentNoteId: note.parentNoteId,
+  targetEntityType: note.targetEntityType,
+  targetEntityId: note.targetEntityId,
+  body: note.body,
+  mentions: note.mentions as Prisma.InputJsonValue | null,
+  attachments: note.attachments as Prisma.InputJsonValue | null,
+  metadata: note.metadata as Prisma.InputJsonValue | null,
+  version: note.version,
+  createdAt: note.createdAt.toISOString(),
+  updatedAt: note.updatedAt.toISOString(),
+  deletedAt: note.deletedAt?.toISOString() ?? null,
+  author: note.author
+    ? {
+        id: note.author.id,
+        name: note.author.name,
+        email: note.author.email,
+        avatarUrl: note.author.avatarUrl
+      }
+    : null
+});
+
 export class NotesRepository {
   async list(filters: {
     cursor?: string | undefined;
@@ -130,12 +159,13 @@ export class NotesRepository {
         ...mutation,
         entityType: 'NOTE',
         entityId: note.id,
-        payload: {
-          noteId: note.id,
-          targetEntityType: note.targetEntityType,
-          targetEntityId: note.targetEntityId,
-          parentNoteId: note.parentNoteId
-        }
+        operation: syncOperations.created,
+        payload: createEntityPatchPayload({
+          patchType: syncOperations.created,
+          entityType: 'NOTE',
+          entityId: note.id,
+          fields: notePatchFields(note)
+        })
       });
 
       return { note, revision };
@@ -158,6 +188,13 @@ export class NotesRepository {
     });
   }
 
+  findNoteById(noteId: string): Promise<NoteRecord | null> {
+    return prisma.note.findUnique({
+      where: { id: noteId },
+      include: noteInclude
+    });
+  }
+
   updateNote(
     noteId: string,
     data: Prisma.NoteUpdateInput,
@@ -173,7 +210,13 @@ export class NotesRepository {
         ...mutation,
         entityType: 'NOTE',
         entityId: note.id,
-        payload: { noteId: note.id, version: note.version }
+        operation: syncOperations.updated,
+        payload: createEntityPatchPayload({
+          patchType: syncOperations.updated,
+          entityType: 'NOTE',
+          entityId: note.id,
+          fields: notePatchFields(note)
+        })
       });
 
       return { note, revision };
@@ -195,7 +238,18 @@ export class NotesRepository {
         ...mutation,
         entityType: 'NOTE',
         entityId: note.id,
-        payload: { noteId: note.id, version: note.version }
+        operation: syncOperations.deleted,
+        payload: createEntityPatchPayload({
+          patchType: syncOperations.deleted,
+          entityType: 'NOTE',
+          entityId: note.id,
+          tombstone: {
+            id: note.id,
+            tripId: note.tripId,
+            version: note.version,
+            deletedAt: note.deletedAt?.toISOString() ?? null
+          }
+        })
       });
 
       return { note, revision };

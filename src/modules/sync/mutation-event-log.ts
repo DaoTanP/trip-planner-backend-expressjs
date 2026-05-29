@@ -11,6 +11,37 @@ export type AppendMutationEventInput = {
   payload?: Prisma.InputJsonValue | null | undefined;
 };
 
+export const syncOperations = {
+  created: 'ENTITY_CREATED',
+  updated: 'ENTITY_UPDATED',
+  moved: 'ENTITY_MOVED',
+  deleted: 'ENTITY_DELETED',
+  rebalanced: 'ENTITY_REBALANCED'
+} as const;
+
+export const createEntityPatchPayload = ({
+  patchType,
+  entityType,
+  entityId,
+  entity,
+  fields,
+  tombstone
+}: {
+  patchType: (typeof syncOperations)[keyof typeof syncOperations];
+  entityType: string;
+  entityId: string;
+  entity?: Prisma.InputJsonValue | null | undefined;
+  fields?: Prisma.InputJsonValue | null | undefined;
+  tombstone?: Prisma.InputJsonValue | null | undefined;
+}): Prisma.InputJsonObject => ({
+  patchType,
+  entityType,
+  entityId,
+  ...(entity !== undefined ? { entity } : {}),
+  ...(fields !== undefined ? { fields } : {}),
+  ...(tombstone !== undefined ? { tombstone } : {})
+});
+
 export const appendMutationEvent = async (
   tx: Prisma.TransactionClient,
   input: AppendMutationEventInput

@@ -8,6 +8,7 @@ const uuidParam = z.string().uuid();
 const dateTimeSchema = z.string().datetime();
 const clientMutationIdSchema = z.string().trim().max(120).optional();
 const deviceIdSchema = z.string().trim().max(128).optional();
+const revisionStringSchema = z.string().trim().regex(/^\d+$/).optional();
 
 const itineraryItemPayloadShape = {
   placeId: uuidParam.nullable().optional(),
@@ -34,6 +35,7 @@ const itineraryItemPayloadShape = {
   bookingInfo: z.record(z.unknown()).nullable().optional(),
   metadata: z.record(z.unknown()).nullable().optional(),
   expectedVersion: z.number().int().positive().optional(),
+  expectedRevision: revisionStringSchema,
   clientMutationId: clientMutationIdSchema,
   deviceId: deviceIdSchema
 } as const;
@@ -82,6 +84,7 @@ export const createTripItineraryItemSchema = z.object({
       durationMinutes: z.number().int().nonnegative().optional(),
       bookingInfo: z.record(z.unknown()).optional(),
       metadata: z.record(z.unknown()).optional(),
+      expectedRevision: revisionStringSchema,
       clientMutationId: clientMutationIdSchema,
       deviceId: deviceIdSchema
     })
@@ -107,6 +110,7 @@ export const reorderItineraryItemsSchema = z.object({
       beforeItemId: uuidParam.nullable().optional(),
       afterItemId: uuidParam.nullable().optional(),
       expectedVersion: z.number().int().positive().optional(),
+      expectedRevision: revisionStringSchema,
       clientMutationId: clientMutationIdSchema,
       deviceId: deviceIdSchema
     })
@@ -126,11 +130,23 @@ export const itineraryItemIdSchema = z.object({
   })
 });
 
+export const deleteItineraryItemSchema = z.object({
+  params: z.object({
+    itemId: uuidParam
+  }),
+  query: z.object({
+    expectedRevision: revisionStringSchema,
+    clientMutationId: clientMutationIdSchema,
+    deviceId: deviceIdSchema
+  })
+});
+
 export type ListItineraryParams = z.infer<typeof listItinerarySchema>['params'];
 export type ListItineraryQuery = z.infer<typeof listItinerarySchema>['query'];
 export type CreateItineraryItemInput = z.infer<typeof createTripItineraryItemSchema>['body'];
 export type CreateTripItineraryItemParams = z.infer<typeof createTripItineraryItemSchema>['params'];
 export type UpdateItineraryItemInput = z.infer<typeof updateItineraryItemSchema>['body'];
 export type ItineraryItemIdParams = z.infer<typeof itineraryItemIdSchema>['params'];
+export type DeleteItineraryItemQuery = z.infer<typeof deleteItineraryItemSchema>['query'];
 export type ReorderItineraryItemsInput = z.infer<typeof reorderItineraryItemsSchema>['body'];
 export type ReorderItineraryItemsParams = z.infer<typeof reorderItineraryItemsSchema>['params'];

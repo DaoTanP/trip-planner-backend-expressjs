@@ -13,7 +13,11 @@ import {
   spacedItineraryOrder
 } from '@/modules/itinerary/itinerary-ordering.js';
 import { registerCollaborationEntity } from '@/modules/collaboration/collaboration-entity-registry.js';
-import { appendMutationEvent } from '@/modules/sync/mutation-event-log.js';
+import {
+  appendMutationEvent,
+  createEntityPatchPayload,
+  syncOperations
+} from '@/modules/sync/mutation-event-log.js';
 import { prisma } from '@/prisma/client.js';
 
 type SortOrderCursor = {
@@ -67,6 +71,32 @@ const itineraryItemCursor = (item: Pick<ItineraryItem, 'sortOrder' | 'id'>): str
     sortOrder: item.sortOrder,
     id: item.id
   });
+
+const itineraryItemPatchFields = (item: ItineraryItem): Prisma.InputJsonObject => ({
+  id: item.id,
+  tripId: item.tripId,
+  placeId: item.placeId,
+  routeSegmentId: item.routeSegmentId,
+  type: item.type,
+  title: item.title,
+  description: item.description,
+  timezone: item.timezone,
+  startTime: item.startTime?.toISOString() ?? null,
+  endTime: item.endTime?.toISOString() ?? null,
+  isFlexibleTime: item.isFlexibleTime,
+  isAllDay: item.isAllDay,
+  sortOrder: item.sortOrder,
+  status: item.status,
+  cost: item.cost === null ? null : Number(item.cost),
+  currency: item.currency,
+  durationMinutes: item.durationMinutes,
+  bookingInfo: item.bookingInfo as Prisma.InputJsonValue | null,
+  metadata: item.metadata as Prisma.InputJsonValue | null,
+  version: item.version,
+  createdAt: item.createdAt.toISOString(),
+  updatedAt: item.updatedAt.toISOString(),
+  deletedAt: item.deletedAt?.toISOString() ?? null
+});
 
 export class ItineraryRepository {
   async listItems(
@@ -131,7 +161,13 @@ export class ItineraryRepository {
         tripId: item.tripId,
         entityType: 'ITINERARY_ITEM',
         entityId: item.id,
-        payload: { itemId: item.id }
+        operation: syncOperations.created,
+        payload: createEntityPatchPayload({
+          patchType: syncOperations.created,
+          entityType: 'ITINERARY_ITEM',
+          entityId: item.id,
+          fields: itineraryItemPatchFields(item)
+        })
       });
 
       return { item, revision };
@@ -145,6 +181,12 @@ export class ItineraryRepository {
         tripId: true,
         version: true
       }
+    });
+  }
+
+  findItineraryItemById(itemId: string): Promise<ItineraryItem | null> {
+    return prisma.itineraryItem.findUnique({
+      where: { id: itemId }
     });
   }
 
@@ -162,7 +204,13 @@ export class ItineraryRepository {
         ...mutation,
         entityType: 'ITINERARY_ITEM',
         entityId: item.id,
-        payload: { itemId: item.id, version: item.version }
+        operation: syncOperations.updated,
+        payload: createEntityPatchPayload({
+          patchType: syncOperations.updated,
+          entityType: 'ITINERARY_ITEM',
+          entityId: item.id,
+          fields: itineraryItemPatchFields(item)
+        })
       });
 
       return { item, revision };
@@ -186,7 +234,18 @@ export class ItineraryRepository {
         ...mutation,
         entityType: 'ITINERARY_ITEM',
         entityId: item.id,
-        payload: { itemId: item.id, version: item.version }
+        operation: syncOperations.deleted,
+        payload: createEntityPatchPayload({
+          patchType: syncOperations.deleted,
+          entityType: 'ITINERARY_ITEM',
+          entityId: item.id,
+          tombstone: {
+            id: item.id,
+            tripId: item.tripId,
+            version: item.version,
+            deletedAt: item.deletedAt?.toISOString() ?? null
+          }
+        })
       });
 
       return { item, revision };
@@ -251,13 +310,21 @@ export class ItineraryRepository {
           clientMutationId: input.clientMutationId,
           entityType: 'ITINERARY_ITEM',
           entityId: item.id,
-          operation: 'REORDER',
-          payload: {
-            itemId: item.id,
-            beforeItemId: input.beforeItemId ?? null,
-            afterItemId: input.afterItemId ?? null,
-            sortOrder: updated.sortOrder
-          }
+          operation: syncOperations.moved,
+          payload: createEntityPatchPayload({
+            patchType: syncOperations.moved,
+            entityType: 'ITINERARY_ITEM',
+            entityId: item.id,
+            fields: {
+              id: item.id,
+              tripId,
+              beforeItemId: input.beforeItemId ?? null,
+              afterItemId: input.afterItemId ?? null,
+              sortOrder: updated.sortOrder,
+              version: updated.version,
+              updatedAt: updated.updatedAt.toISOString()
+            }
+          })
         });
 
         return { item: updated, affectedItems: [updated], revision };
@@ -278,13 +345,23 @@ export class ItineraryRepository {
         clientMutationId: input.clientMutationId,
         entityType: 'ITINERARY_ITEM',
         entityId: item.id,
-        operation: 'REORDER_REBALANCE',
-        payload: {
-          itemId: item.id,
-          beforeItemId: input.beforeItemId ?? null,
-          afterItemId: input.afterItemId ?? null,
-          affectedItemCount: rebalanced.length
-        }
+        operation: syncOperations.rebalanced,
+        payload: createEntityPatchPayload({
+          patchType: syncOperations.rebalanced,
+          entityType: 'ITINERARY_ITEM',
+          entityId: item.id,
+          fields: {
+            itemId: item.id,
+            beforeItemId: input.beforeItemId ?? null,
+            afterItemId: input.afterItemId ?? null,
+            affectedItems: rebalanced.map((candidate) => ({
+              id: candidate.id,
+              sortOrder: candidate.sortOrder,
+              version: candidate.version,
+              updatedAt: candidate.updatedAt.toISOString()
+            }))
+          }
+        })
       });
 
       return {

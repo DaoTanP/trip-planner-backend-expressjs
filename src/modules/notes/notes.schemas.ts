@@ -11,6 +11,7 @@ export const noteTargetEntityTypes = [
 const uuidParam = z.string().uuid();
 const clientMutationIdSchema = z.string().trim().max(120).optional();
 const deviceIdSchema = z.string().trim().max(128).optional();
+const revisionStringSchema = z.string().trim().regex(/^\d+$/).optional();
 const jsonArraySchema = z.array(z.record(z.unknown())).nullable().optional();
 const jsonRecordSchema = z.record(z.unknown()).nullable().optional();
 
@@ -37,6 +38,7 @@ export const createNoteSchema = z.object({
     mentions: jsonArraySchema,
     attachments: jsonArraySchema,
     metadata: jsonRecordSchema,
+    expectedRevision: revisionStringSchema,
     clientMutationId: clientMutationIdSchema,
     deviceId: deviceIdSchema
   })
@@ -58,6 +60,7 @@ export const updateNoteSchema = z.object({
     attachments: jsonArraySchema,
     metadata: jsonRecordSchema,
     expectedVersion: z.number().int().positive().optional(),
+    expectedRevision: revisionStringSchema,
     clientMutationId: clientMutationIdSchema,
     deviceId: deviceIdSchema
   })
@@ -68,6 +71,7 @@ export const deleteNoteSchema = z.object({
     noteId: uuidParam
   }),
   query: z.object({
+    expectedRevision: revisionStringSchema,
     clientMutationId: clientMutationIdSchema,
     deviceId: deviceIdSchema
   })

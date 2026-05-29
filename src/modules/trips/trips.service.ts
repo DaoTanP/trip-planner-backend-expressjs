@@ -2,8 +2,10 @@ import type { Prisma, TripRole, UserRole } from '@prisma/client';
 
 import { AuthorizationError } from '@/common/errors/authorization-error.js';
 import { NotFoundError } from '@/common/errors/not-found-error.js';
+import { RevisionConflictError } from '@/common/errors/revision-conflict-error.js';
 import { normalizeCursorLimit } from '@/common/utils/cursor-pagination.js';
 import { parseDateOnly } from '@/common/utils/date.js';
+import { findIdempotentMutation } from '@/modules/sync/idempotency.js';
 import type {
   CreateTripInput,
   ListTripExpensesQuery,
@@ -79,6 +81,18 @@ export class TripsService {
 
   async updateTrip(userId: string, tripId: string, input: UpdateTripInput) {
     await this.ensureCanEditTrip(userId, tripId);
+
+    const replay = await findIdempotentMutation(tripId, input.clientMutationId);
+    if (replay) {
+      const replayedTrip = await this.repository.findById(tripId);
+      if (!replayedTrip) {
+        throw new NotFoundError({ resourceKey: 'resources.trip' });
+      }
+
+      return replayedTrip;
+    }
+
+    await this.ensureExpectedRevision(tripId, input.expectedRevision);
 
     const data: Prisma.TripUpdateInput = {};
     if (input.title !== undefined) data.title = input.title;
@@ -181,6 +195,47 @@ export class TripsService {
     const access = await this.getAccessContext(userId, tripId, userRole);
     if (!access.canEdit) {
       throw new AuthorizationError();
+    }
+  }
+
+  async getTripRevision(tripId: string): Promise<bigint> {
+    const trip = await this.repository.findRevision(tripId);
+    if (!trip) {
+      throw new NotFoundError({ resourceKey: 'resources.trip' });
+    }
+
+    return trip.revision;
+  }
+
+  async ensureExpectedRevision(
+    tripId: string,
+    expectedRevision?: string,
+    details?: { entityVersion?: number; latestEntity?: Record<string, unknown> | null }
+  ): Promise<void> {
+    if (expectedRevision === undefined) {
+      return;
+    }
+
+    const currentRevision = await this.getTripRevision(tripId);
+    if (currentRevision.toString() !== expectedRevision) {
+      const conflictDetails: {
+        currentRevision: string;
+        latestTripRevision: string;
+        entityVersion?: number;
+        latestEntity?: Record<string, unknown> | null;
+      } = {
+        currentRevision: currentRevision.toString(),
+        latestTripRevision: currentRevision.toString()
+      };
+
+      if (details?.entityVersion !== undefined) {
+        conflictDetails.entityVersion = details.entityVersion;
+      }
+      if (details?.latestEntity !== undefined) {
+        conflictDetails.latestEntity = details.latestEntity;
+      }
+
+      throw new RevisionConflictError(conflictDetails);
     }
   }
 }

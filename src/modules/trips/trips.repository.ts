@@ -7,7 +7,11 @@ import {
   type CursorPage
 } from '@/common/utils/cursor-pagination.js';
 import { registerCollaborationEntity } from '@/modules/collaboration/collaboration-entity-registry.js';
-import { appendMutationEvent } from '@/modules/sync/mutation-event-log.js';
+import {
+  appendMutationEvent,
+  createEntityPatchPayload,
+  syncOperations
+} from '@/modules/sync/mutation-event-log.js';
 import { prisma } from '@/prisma/client.js';
 
 export type TripListFilters = {
@@ -117,8 +121,17 @@ export class TripsRepository {
         actorId,
         entityType: 'TRIP',
         entityId: trip.id,
-        operation: 'CREATE',
-        payload: { tripId: trip.id }
+        operation: syncOperations.created,
+        payload: createEntityPatchPayload({
+          patchType: syncOperations.created,
+          entityType: 'TRIP',
+          entityId: trip.id,
+          fields: {
+            id: trip.id,
+            revision: trip.revision.toString(),
+            version: trip.version
+          }
+        })
       });
 
       return tx.trip.findUniqueOrThrow({
@@ -225,6 +238,15 @@ export class TripsRepository {
     });
   }
 
+  findRevision(tripId: string) {
+    return prisma.trip.findUnique({
+      where: { id: tripId },
+      select: {
+        revision: true
+      }
+    });
+  }
+
   update(
     id: string,
     data: Prisma.TripUpdateInput,
@@ -246,8 +268,28 @@ export class TripsRepository {
         clientMutationId: mutation.clientMutationId,
         entityType: 'TRIP',
         entityId: id,
-        operation: 'UPDATE',
-        payload: { tripId: id, version: trip.version }
+        operation: syncOperations.updated,
+        payload: createEntityPatchPayload({
+          patchType: syncOperations.updated,
+          entityType: 'TRIP',
+          entityId: id,
+          fields: {
+            id,
+            title: trip.title,
+            description: trip.description,
+            startDate: trip.startDate?.toISOString().slice(0, 10) ?? null,
+            endDate: trip.endDate?.toISOString().slice(0, 10) ?? null,
+            timezone: trip.timezone,
+            visibility: trip.visibility,
+            status: trip.status,
+            coverImageUrl: trip.coverImageUrl,
+            preferences: trip.preferences as Prisma.InputJsonValue | null,
+            metadata: trip.metadata as Prisma.InputJsonValue | null,
+            version: trip.version,
+            revision: trip.revision.toString(),
+            updatedAt: trip.updatedAt.toISOString()
+          }
+        })
       });
 
       return trip;

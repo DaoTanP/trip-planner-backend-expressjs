@@ -471,9 +471,13 @@ Itinerary ordering uses large spaced integer positions: `65536`, `131072`, `1966
 
 Services validate that the moved item and neighbors belong to the target trip before any writes occur. The common case updates only the moved row; a sparse-order rebalance happens only when there is no gap left between neighbors. Ordering helpers live with the itinerary module so a future LexoRank or fractional-indexing migration has one boundary.
 
-Mutations echo `clientMutationId` where useful, increment row `version`, and may reject stale `expectedVersion` values. A lightweight `ClientMutation` table records mutation IDs, device IDs, operations, and revisions for idempotency, future websocket dedupe, and offline/mobile replay.
+Mutations echo `clientMutationId` where useful, increment row `version`, and may reject stale `expectedVersion` values. Mutations that operate inside a trip may also accept `expectedRevision`; if the trip has moved forward, the API returns `409 REVISION_CONFLICT` with `currentRevision`, `latestTripRevision`, optional `entityVersion`, and optional `latestEntity`. This gives clients enough context to roll back or reconcile optimistic work without fetching a full trip tree.
+
+A lightweight `ClientMutation` table records mutation IDs, device IDs, operations, and revisions for idempotency, future websocket dedupe, and offline/mobile replay. Services check this table before applying replayable mutations and return the canonical entity state for duplicate `clientMutationId` requests rather than applying the same intent twice.
 
 Every trip-affecting write also increments `Trip.revision` and appends a `MutationEvent` row in the same database transaction. `MutationEvent` is an append-only debugging, sync catch-up, and future fanout log; it is not event sourcing, and reads still come from normalized tables. Revisions are serialized as strings because PostgreSQL `BIGINT` can outgrow JavaScript's safe integer range.
+
+Mutation event payloads are normalized entity patches, not full trip snapshots. Operations use stable names such as `ENTITY_CREATED`, `ENTITY_UPDATED`, `ENTITY_MOVED`, `ENTITY_DELETED`, and `ENTITY_REBALANCED`; payloads include `patchType`, `entityType`, `entityId`, and either `fields` or `tombstone`. This keeps future websocket and mobile sync consumers deterministic while preserving normal resource APIs as the source of truth.
 
 ## 25. Place And Route Provider Boundaries
 
@@ -499,7 +503,13 @@ Recommended future shape:
 - Services append durable mutation events and increment trip revisions during the same committed write.
 - Redis coordinates websocket fanout, route cache reuse, and presence.
 - `clientMutationId` and optional `deviceId` suppress echo updates for the originating client/device.
-- Clients can catch up with `GET /trips/:tripId/mutation-events?afterRevision=<revision>` before applying future websocket patches.
+- Clients can catch up with `GET /trips/:tripId/mutation-events?sinceRevision=<revision>` or cursor pagination before applying future websocket patches.
 - The frontend patches or invalidates granular React Query caches from realtime events.
 
 Do not let websocket handlers bypass `TripsService.ensureCanEditTrip` or itinerary service validation.
+
+## 27. Delta Sync Runtime Contract
+
+`GET /trips/:tripId/mutation-events` supports `sinceRevision`, legacy `afterRevision`, `cursor`, and `limit`. Results are ordered by `(revision, id)` and return `latestRevision`, `hasMore`, and `nextCursor`. Consumers should apply events in response order and persist the latest applied revision separately from UI state.
+
+Delta sync is a catch-up boundary, not a replacement for normalized reads. If a client detects a revision gap, it should fetch mutation events, apply patch payloads to granular caches, and fall back to refetching the affected resource only when an event cannot be applied deterministically.

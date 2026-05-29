@@ -10,9 +10,10 @@ export class SyncService {
 
   async listMutationEvents(userId: string, tripId: string, query: ListMutationEventsQuery) {
     await this.trips.ensureCanAccessTrip(userId, tripId);
+    const sinceRevision = query.cursor ?? query.sinceRevision ?? query.afterRevision;
 
     return this.repository.listMutationEventsForTrip(tripId, {
-      afterRevision: query.afterRevision !== undefined ? BigInt(query.afterRevision) : undefined,
+      sinceRevision: sinceRevision !== undefined ? BigInt(sinceRevision) : undefined,
       limit: Math.min(Math.max(query.limit, 1), 500)
     });
   }

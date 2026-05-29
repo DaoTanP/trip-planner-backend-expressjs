@@ -15,6 +15,7 @@ import type {
   ListNotesQuery,
   UpdateNoteInput
 } from '@/modules/notes/notes.schemas.js';
+import { ensureIdempotentMutation } from '@/modules/sync/idempotency.js';
 import { tripsService, type TripsService } from '@/modules/trips/trips.service.js';
 
 export class NotesService {
@@ -59,6 +60,22 @@ export class NotesService {
       input.targetEntityId,
       input.tripId
     );
+    const replay = await ensureIdempotentMutation(
+      target.tripId,
+      input.clientMutationId,
+      async (mutation) => {
+        if (!mutation.entityId) return null;
+
+        const note = await this.repository.findNoteById(mutation.entityId);
+        return note ? { note, revision: mutation.revision } : null;
+      }
+    );
+
+    if (replay) {
+      return replay;
+    }
+
+    await this.trips.ensureExpectedRevision(target.tripId, input.expectedRevision);
 
     if (input.parentNoteId) {
       await this.ensureParentMatchesTarget(input.parentNoteId, target);
@@ -83,7 +100,7 @@ export class NotesService {
       actorId: actor.id,
       deviceId: input.deviceId,
       clientMutationId: input.clientMutationId,
-      operation: 'CREATE'
+      operation: 'ENTITY_CREATED'
     });
   }
 
@@ -98,6 +115,29 @@ export class NotesService {
     if (!access.tripId) {
       throw new ConflictError('Note mutation requires a trip revision scope');
     }
+    const replay = await ensureIdempotentMutation(
+      access.tripId,
+      input.clientMutationId,
+      async (mutation) => {
+        if (!mutation.entityId) return null;
+
+        const note = await this.repository.findNoteById(mutation.entityId);
+        return note ? { note, revision: mutation.revision } : null;
+      }
+    );
+
+    if (replay) {
+      return replay;
+    }
+
+    await this.trips.ensureExpectedRevision(access.tripId, input.expectedRevision, {
+      entityVersion: access.version,
+      latestEntity: {
+        id: noteId,
+        tripId: access.tripId,
+        version: access.version
+      }
+    });
 
     if (input.expectedVersion !== undefined && input.expectedVersion !== access.version) {
       throw new ConflictError('Note version conflict');
@@ -118,7 +158,7 @@ export class NotesService {
       actorId: actor.id,
       deviceId: input.deviceId,
       clientMutationId: input.clientMutationId,
-      operation: 'UPDATE'
+      operation: 'ENTITY_UPDATED'
     });
   }
 
@@ -133,13 +173,36 @@ export class NotesService {
     if (!access.tripId) {
       throw new ConflictError('Note mutation requires a trip revision scope');
     }
+    const replay = await ensureIdempotentMutation(
+      access.tripId,
+      query.clientMutationId,
+      async (mutation) => {
+        if (!mutation.entityId) return null;
+
+        const note = await this.repository.findNoteById(mutation.entityId);
+        return note ? { note, revision: mutation.revision } : null;
+      }
+    );
+
+    if (replay) {
+      return replay;
+    }
+
+    await this.trips.ensureExpectedRevision(access.tripId, query.expectedRevision, {
+      entityVersion: access.version,
+      latestEntity: {
+        id: noteId,
+        tripId: access.tripId,
+        version: access.version
+      }
+    });
 
     return this.repository.softDeleteNote(noteId, {
       tripId: access.tripId,
       actorId: actor.id,
       deviceId: query.deviceId,
       clientMutationId: query.clientMutationId,
-      operation: 'DELETE'
+      operation: 'ENTITY_DELETED'
     });
   }
 

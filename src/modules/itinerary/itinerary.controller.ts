@@ -12,6 +12,7 @@ import { itineraryService, type ItineraryService } from '@/modules/itinerary/iti
 import type {
   CreateItineraryItemInput,
   CreateTripItineraryItemParams,
+  DeleteItineraryItemQuery,
   ItineraryItemIdParams,
   ListItineraryParams,
   ListItineraryQuery,
@@ -80,8 +81,11 @@ export class ItineraryController {
     });
   };
 
-  deleteItineraryItem = async (req: Request<ItineraryItemIdParams>, res: Response) => {
-    await this.service.deleteItineraryItem(requireUserId(req), req.params.itemId);
+  deleteItineraryItem = async (
+    req: Request<ItineraryItemIdParams, unknown, unknown, DeleteItineraryItemQuery>,
+    res: Response
+  ) => {
+    await this.service.deleteItineraryItem(requireUserId(req), req.params.itemId, req.query);
     return sendNoContent(res);
   };
 

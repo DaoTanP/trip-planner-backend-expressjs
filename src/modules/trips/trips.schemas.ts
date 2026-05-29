@@ -55,6 +55,7 @@ export const updateTripSchema = z.object({
       coverImageUrl: z.string().url().nullable().optional(),
       preferences: z.record(z.unknown()).nullable().optional(),
       metadata: z.record(z.unknown()).nullable().optional(),
+      expectedRevision: z.string().trim().regex(/^\d+$/).optional(),
       clientMutationId: clientMutationIdSchema,
       deviceId: deviceIdSchema
     })

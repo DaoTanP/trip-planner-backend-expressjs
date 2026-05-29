@@ -32,7 +32,9 @@ export class SyncController {
 
     return sendSuccess(res, {
       events: result.events.map(serializeMutationEvent),
-      latestRevision: result.latestRevision.toString()
+      latestRevision: result.latestRevision.toString(),
+      hasMore: result.hasMore,
+      nextCursor: result.nextCursor
     });
   };
 }

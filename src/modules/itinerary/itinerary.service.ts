@@ -10,10 +10,12 @@ import {
 } from '@/modules/itinerary/itinerary.repository.js';
 import type {
   CreateItineraryItemInput,
+  DeleteItineraryItemQuery,
   ListItineraryQuery,
   ReorderItineraryItemsInput,
   UpdateItineraryItemInput
 } from '@/modules/itinerary/itinerary.schemas.js';
+import { ensureIdempotentMutation } from '@/modules/sync/idempotency.js';
 import { tripsService, type TripsService } from '@/modules/trips/trips.service.js';
 
 export class ItineraryService {
@@ -39,12 +41,28 @@ export class ItineraryService {
 
   async createItineraryItem(userId: string, tripId: string, input: CreateItineraryItemInput) {
     await this.trips.ensureCanEditTrip(userId, tripId);
+    const replay = await ensureIdempotentMutation(
+      tripId,
+      input.clientMutationId,
+      async (mutation) => {
+        if (!mutation.entityId) return null;
+
+        const item = await this.repository.findItineraryItemById(mutation.entityId);
+        return item ? { item, revision: mutation.revision } : null;
+      }
+    );
+
+    if (replay) {
+      return replay;
+    }
+
+    await this.trips.ensureExpectedRevision(tripId, input.expectedRevision);
 
     return this.repository.createItineraryItem(await this.toCreateData(tripId, input), {
       actorId: userId,
       deviceId: input.deviceId,
       clientMutationId: input.clientMutationId,
-      operation: 'CREATE'
+      operation: 'ENTITY_CREATED'
     });
   }
 
@@ -55,6 +73,29 @@ export class ItineraryService {
     }
 
     await this.trips.ensureCanEditTrip(userId, access.tripId);
+    const replay = await ensureIdempotentMutation(
+      access.tripId,
+      input.clientMutationId,
+      async (mutation) => {
+        if (!mutation.entityId) return null;
+
+        const item = await this.repository.findItineraryItemById(mutation.entityId);
+        return item ? { item, revision: mutation.revision } : null;
+      }
+    );
+
+    if (replay) {
+      return replay;
+    }
+
+    await this.trips.ensureExpectedRevision(access.tripId, input.expectedRevision, {
+      entityVersion: access.version,
+      latestEntity: {
+        id: itemId,
+        tripId: access.tripId,
+        version: access.version
+      }
+    });
 
     if (input.expectedVersion !== undefined && input.expectedVersion !== access.version) {
       throw new ConflictError('Itinerary item version conflict');
@@ -98,31 +139,78 @@ export class ItineraryService {
       actorId: userId,
       deviceId: input.deviceId,
       clientMutationId: input.clientMutationId,
-      operation: 'UPDATE'
+      operation: 'ENTITY_UPDATED'
     });
   }
 
-  async deleteItineraryItem(userId: string, itemId: string): Promise<void> {
+  async deleteItineraryItem(
+    userId: string,
+    itemId: string,
+    query: DeleteItineraryItemQuery
+  ): Promise<void> {
     const access = await this.repository.findItineraryItemTripId(itemId);
     if (!access) {
       throw new NotFoundError({ resourceKey: 'resources.itineraryItem' });
     }
 
     await this.trips.ensureCanEditTrip(userId, access.tripId);
+    const replay = await ensureIdempotentMutation(
+      access.tripId,
+      query.clientMutationId,
+      async () => true
+    );
+    if (replay) {
+      return;
+    }
+
+    await this.trips.ensureExpectedRevision(access.tripId, query.expectedRevision, {
+      entityVersion: access.version,
+      latestEntity: {
+        id: itemId,
+        tripId: access.tripId,
+        version: access.version
+      }
+    });
+
     await this.repository.softDeleteItineraryItem(itemId, {
       tripId: access.tripId,
       actorId: userId,
-      operation: 'DELETE'
+      deviceId: query.deviceId,
+      clientMutationId: query.clientMutationId,
+      operation: 'ENTITY_DELETED'
     });
   }
 
   async reorderItineraryItems(userId: string, tripId: string, input: ReorderItineraryItemsInput) {
     await this.trips.ensureCanEditTrip(userId, tripId);
+    const replay = await ensureIdempotentMutation(
+      tripId,
+      input.clientMutationId,
+      async (mutation) => {
+        if (!mutation.entityId) return null;
+
+        const item = await this.repository.findItineraryItemById(mutation.entityId);
+        return item ? { item, affectedItems: [item], revision: mutation.revision } : null;
+      }
+    );
+
+    if (replay) {
+      return replay;
+    }
 
     const access = await this.repository.findItineraryItemTripId(input.itemId);
     if (!access || access.tripId !== tripId) {
       throw new ConflictError('Itinerary reorder payload contains an item outside this trip');
     }
+
+    await this.trips.ensureExpectedRevision(tripId, input.expectedRevision, {
+      entityVersion: access.version,
+      latestEntity: {
+        id: input.itemId,
+        tripId,
+        version: access.version
+      }
+    });
 
     if (input.expectedVersion !== undefined && input.expectedVersion !== access.version) {
       throw new ConflictError('Itinerary reorder payload contains a stale item version');

@@ -6,6 +6,7 @@ import { asyncHandler } from '@/common/utils/async-handler.js';
 import { itineraryController } from '@/modules/itinerary/itinerary.controller.js';
 import {
   createTripItineraryItemSchema,
+  deleteItineraryItemSchema,
   itineraryItemIdSchema,
   listItinerarySchema,
   reorderItineraryItemsSchema,
@@ -43,6 +44,6 @@ itineraryRouter.patch(
 );
 itineraryRouter.delete(
   '/itinerary-items/:itemId',
-  validateRequest(itineraryItemIdSchema),
+  validateRequest(deleteItineraryItemSchema),
   asyncHandler(itineraryController.deleteItineraryItem)
 );
