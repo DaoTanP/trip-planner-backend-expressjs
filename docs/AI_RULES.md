@@ -297,7 +297,9 @@ AI agents changing the trip editor backend must:
 - Do not reintroduce `TripDay`, `legacyDayId`, day-based routes, or day-target comment enums.
 - Validate reorder payload ownership before transactional writes.
 - Use intent-based reorder payloads. Clients send the moved item and neighbor IDs; the backend computes sparse `sortOrder` and rebalances only when necessary.
-- Use stable spaced `sortOrder`, row `version`, optional `expectedVersion`, `clientMutationId`, and `ClientMutation` records for optimistic/realtime-safe mutations.
+- Use stable spaced `sortOrder`, row `version`, optional `expectedVersion`, `clientMutationId`, optional `deviceId`, trip `revision`, and `ClientMutation` records for optimistic/realtime-safe mutations.
+- Append `MutationEvent` rows in the same transaction as trip-affecting writes. Treat the event log as a sync/fanout/debug foundation, not as event sourcing.
+- Keep `GET /trips/:tripId/mutation-events` revision-based and permission-checked through trip access rules.
 - Serialize trip detail responses through `trip.serializer.ts` and keep them metadata-only.
 - Return itinerary, generic notes, comments, places, routes, collaborators, and expenses through granular endpoints. Cursor paginate large collaborative resources.
 - Update `src/api/contracts/v1.ts` and sync the frontend contract after API shape changes.
@@ -310,6 +312,6 @@ AI agents must not:
 - Move itinerary items across trips.
 - Reintroduce required `dayId` ownership for itinerary items.
 - Recreate `Destination` as an itinerary-location entity.
-- Recreate `TripNote` or `ItineraryNote`; notes attach through `targetEntityType` and `targetEntityId`.
+- Recreate `TripNote`, `ItineraryNote`, or any entity-specific note table; notes attach through typed `targetEntityType` and `targetEntityId` and target validation belongs behind the collaboration registry.
 - Couple place search to a single external provider in controllers.
 - Store route geometry as the source of truth for place coordinates.

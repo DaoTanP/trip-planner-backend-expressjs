@@ -3,6 +3,7 @@ import type { Prisma } from '@prisma/client';
 import { ConflictError } from '@/common/errors/conflict-error.js';
 import { NotFoundError } from '@/common/errors/not-found-error.js';
 import { normalizeCursorLimit } from '@/common/utils/cursor-pagination.js';
+import { itineraryOrderStride } from '@/modules/itinerary/itinerary-ordering.js';
 import {
   itineraryRepository,
   type ItineraryRepository
@@ -14,8 +15,6 @@ import type {
   UpdateItineraryItemInput
 } from '@/modules/itinerary/itinerary.schemas.js';
 import { tripsService, type TripsService } from '@/modules/trips/trips.service.js';
-
-const orderStride = 1024;
 
 export class ItineraryService {
   constructor(
@@ -43,6 +42,7 @@ export class ItineraryService {
 
     return this.repository.createItineraryItem(await this.toCreateData(tripId, input), {
       actorId: userId,
+      deviceId: input.deviceId,
       clientMutationId: input.clientMutationId,
       operation: 'CREATE'
     });
@@ -96,6 +96,7 @@ export class ItineraryService {
     return this.repository.updateItineraryItem(itemId, data, {
       tripId: access.tripId,
       actorId: userId,
+      deviceId: input.deviceId,
       clientMutationId: input.clientMutationId,
       operation: 'UPDATE'
     });
@@ -108,7 +109,11 @@ export class ItineraryService {
     }
 
     await this.trips.ensureCanEditTrip(userId, access.tripId);
-    await this.repository.softDeleteItineraryItem(itemId);
+    await this.repository.softDeleteItineraryItem(itemId, {
+      tripId: access.tripId,
+      actorId: userId,
+      operation: 'DELETE'
+    });
   }
 
   async reorderItineraryItems(userId: string, tripId: string, input: ReorderItineraryItemsInput) {
@@ -134,7 +139,8 @@ export class ItineraryService {
 
     return {
       item: result.item,
-      affectedItems: result.affectedItems
+      affectedItems: result.affectedItems,
+      revision: result.revision
     };
   }
 
@@ -144,7 +150,7 @@ export class ItineraryService {
   ): Promise<Prisma.ItineraryItemUncheckedCreateInput> {
     const sortOrder =
       input.sortOrder ??
-      ((await this.repository.getMaxSortOrder(tripId))._max.sortOrder ?? 0) + orderStride;
+      ((await this.repository.getMaxSortOrder(tripId))._max.sortOrder ?? 0) + itineraryOrderStride;
 
     const data: Prisma.ItineraryItemUncheckedCreateInput = {
       tripId,

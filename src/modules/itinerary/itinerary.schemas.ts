@@ -7,6 +7,7 @@ import { timezoneSchema } from '@/common/localization/schemas.js';
 const uuidParam = z.string().uuid();
 const dateTimeSchema = z.string().datetime();
 const clientMutationIdSchema = z.string().trim().max(120).optional();
+const deviceIdSchema = z.string().trim().max(128).optional();
 
 const itineraryItemPayloadShape = {
   placeId: uuidParam.nullable().optional(),
@@ -33,7 +34,8 @@ const itineraryItemPayloadShape = {
   bookingInfo: z.record(z.unknown()).nullable().optional(),
   metadata: z.record(z.unknown()).nullable().optional(),
   expectedVersion: z.number().int().positive().optional(),
-  clientMutationId: clientMutationIdSchema
+  clientMutationId: clientMutationIdSchema,
+  deviceId: deviceIdSchema
 } as const;
 
 const itineraryItemPayloadSchema = z
@@ -80,7 +82,8 @@ export const createTripItineraryItemSchema = z.object({
       durationMinutes: z.number().int().nonnegative().optional(),
       bookingInfo: z.record(z.unknown()).optional(),
       metadata: z.record(z.unknown()).optional(),
-      clientMutationId: clientMutationIdSchema
+      clientMutationId: clientMutationIdSchema,
+      deviceId: deviceIdSchema
     })
     .refine((value) => !value.startTime || !value.endTime || value.startTime <= value.endTime, {
       message: 'validation.timeRange.startBeforeEnd'
@@ -104,7 +107,8 @@ export const reorderItineraryItemsSchema = z.object({
       beforeItemId: uuidParam.nullable().optional(),
       afterItemId: uuidParam.nullable().optional(),
       expectedVersion: z.number().int().positive().optional(),
-      clientMutationId: clientMutationIdSchema
+      clientMutationId: clientMutationIdSchema,
+      deviceId: deviceIdSchema
     })
     .refine((value) => value.itemId !== value.beforeItemId, {
       message: 'validation.itinerary.reorderSelfReference',

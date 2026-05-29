@@ -88,6 +88,23 @@ enum RouteProvider {
   INTERNAL
 }
 
+enum NoteTargetEntityType {
+  TRIP
+  ITINERARY_ITEM
+  EXPENSE
+  PLACE
+  ROUTE_SEGMENT
+}
+
+enum CollaborationEntityType {
+  TRIP
+  ITINERARY_ITEM
+  EXPENSE
+  PLACE
+  ROUTE_SEGMENT
+  NOTE
+}
+
 model User {
   id              String       @id @default(uuid()) @db.Uuid
   email           String       @unique @db.Citext
@@ -103,15 +120,16 @@ model User {
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 
-  oauthAccounts  OAuthAccount[]
-  refreshTokens  RefreshToken[]
-  ownedTrips     Trip[]             @relation("TripOwner")
-  collaborations TripCollaborator[]
-  comments       Comment[]
-  notifications  Notification[]
-  notes          Note[]
+  oauthAccounts   OAuthAccount[]
+  refreshTokens   RefreshToken[]
+  ownedTrips      Trip[]             @relation("TripOwner")
+  collaborations  TripCollaborator[]
+  comments        Comment[]
+  notifications   Notification[]
+  notes           Note[]
   clientMutations ClientMutation[]
-  paidExpenses   Expense[]
+  mutationEvents  MutationEvent[]
+  paidExpenses    Expense[]
 
   @@index([status])
   @@index([createdAt])
@@ -169,20 +187,23 @@ model Trip {
   legacyBudget  Json?          @map("budget")
   metadata      Json?
   version       Int            @default(1)
+  revision      BigInt         @default(0)
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
-  owner             User                @relation("TripOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  collaborators     TripCollaborator[]
-  itineraryItems    ItineraryItem[]
-  routeSegments     RouteSegment[]
-  notes             Note[]
-  budgetRecord      Budget?
-  expenseCategories ExpenseCategory[]
-  expenses          Expense[]
-  comments          Comment[]
-  notifications     Notification[]
-  clientMutations   ClientMutation[]
+  owner                 User                @relation("TripOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  collaborators         TripCollaborator[]
+  itineraryItems        ItineraryItem[]
+  routeSegments         RouteSegment[]
+  notes                 Note[]
+  budgetRecord          Budget?
+  expenseCategories     ExpenseCategory[]
+  expenses              Expense[]
+  comments              Comment[]
+  notifications         Notification[]
+  clientMutations       ClientMutation[]
+  mutationEvents        MutationEvent[]
+  collaborationEntities CollaborationEntity[]
 
   @@index([ownerId])
   @@index([status])
@@ -200,7 +221,7 @@ model TripCollaborator {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   deletedAt    DateTime?
-  lastClientMutationId String? @db.VarChar(120)
+  lastClientMutationId String?              @db.VarChar(120)
 
   trip Trip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
@@ -280,18 +301,21 @@ model Place {
 }
 
 model RouteSegment {
-  id              String        @id @default(uuid()) @db.Uuid
-  tripId          String?       @db.Uuid
-  fromPlaceId     String        @db.Uuid
-  toPlaceId       String        @db.Uuid
-  provider        RouteProvider
-  travelMode      String        @default("driving") @db.VarChar(40)
-  routeProfileHash String       @default("default") @db.VarChar(128)
-  polyline        String        @db.Text
-  distanceMeters  Int?
-  durationSeconds Int?
-  metadata        Json?
-  version         Int           @default(1)
+  id                   String        @id @default(uuid()) @db.Uuid
+  tripId               String?       @db.Uuid
+  fromPlaceId          String        @db.Uuid
+  toPlaceId            String        @db.Uuid
+  provider             RouteProvider
+  travelMode           String        @default("driving") @db.VarChar(40)
+  routeProfileHash     String        @default("default") @db.VarChar(128)
+  departureTime        DateTime?
+  trafficModel         String?       @db.VarChar(80)
+  alternativeIndex     Int           @default(0)
+  polyline             String        @db.Text
+  distanceMeters       Int?
+  durationSeconds      Int?
+  metadata             Json?
+  version              Int           @default(1)
   lastClientMutationId String?  @db.VarChar(120)
   expiresAt       DateTime?
   createdAt       DateTime      @default(now())
@@ -303,33 +327,58 @@ model RouteSegment {
   toPlace          Place           @relation("RouteToPlace", fields: [toPlaceId], references: [id], onDelete: Cascade)
   itineraryItems   ItineraryItem[]
 
-  @@unique([provider, fromPlaceId, toPlaceId, travelMode, routeProfileHash])
+  @@unique([provider, fromPlaceId, toPlaceId, travelMode, routeProfileHash, alternativeIndex], map: "RouteSegment_route_identity_key")
   @@index([tripId, deletedAt, createdAt])
+  @@index([tripId, deletedAt, expiresAt])
   @@index([tripId, provider, travelMode])
+  @@index([provider, travelMode, routeProfileHash])
   @@index([fromPlaceId, toPlaceId])
   @@index([expiresAt])
 }
 
 model Note {
-  id               String   @id @default(uuid()) @db.Uuid
-  tripId           String   @db.Uuid
-  authorId         String?  @db.Uuid
-  targetEntityType String   @db.VarChar(80)
-  targetEntityId   String   @db.Uuid
-  body             String   @db.Text
-  metadata         Json?
-  version          Int      @default(1)
-  lastClientMutationId String? @db.VarChar(120)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  deletedAt        DateTime?
+  id                   String               @id @default(uuid()) @db.Uuid
+  tripId               String?              @db.Uuid
+  authorId             String?              @db.Uuid
+  parentNoteId         String?              @db.Uuid
+  targetEntityType     NoteTargetEntityType
+  targetEntityId       String               @db.Uuid
+  body                 String               @db.Text
+  mentions             Json?
+  attachments          Json?
+  metadata             Json?
+  version              Int                  @default(1)
+  lastClientMutationId String?              @db.VarChar(120)
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  deletedAt            DateTime?
 
-  trip   Trip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  author User? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  trip       Trip?  @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  author     User?  @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  parentNote Note?  @relation("NoteReplies", fields: [parentNoteId], references: [id], onDelete: SetNull)
+  replies    Note[] @relation("NoteReplies")
 
   @@index([tripId, deletedAt, createdAt, id])
   @@index([tripId, targetEntityType, targetEntityId, deletedAt, createdAt])
+  @@index([tripId, parentNoteId, createdAt, id])
+  @@index([targetEntityType, targetEntityId, deletedAt, createdAt, id])
+  @@index([targetEntityType, targetEntityId, parentNoteId, createdAt, id])
+  @@index([parentNoteId, deletedAt, createdAt, id])
   @@index([authorId])
+}
+
+model CollaborationEntity {
+  id         String                  @id @default(uuid()) @db.Uuid
+  entityType CollaborationEntityType
+  entityId   String                  @db.Uuid
+  tripId     String?                 @db.Uuid
+  createdAt  DateTime                @default(now())
+
+  trip Trip? @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@unique([entityType, entityId])
+  @@index([tripId, entityType])
+  @@index([entityType, entityId])
 }
 
 model Budget {
@@ -426,10 +475,12 @@ model ClientMutation {
   id               String   @id @default(uuid()) @db.Uuid
   tripId           String   @db.Uuid
   actorId          String?  @db.Uuid
+  deviceId         String?  @db.VarChar(128)
   clientMutationId String   @db.VarChar(120)
   entityType       String   @db.VarChar(80)
   entityId         String?  @db.Uuid
   operation        String   @db.VarChar(80)
+  revision         BigInt?
   createdAt        DateTime @default(now())
 
   trip  Trip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
@@ -437,6 +488,30 @@ model ClientMutation {
 
   @@unique([tripId, clientMutationId])
   @@index([tripId, createdAt])
+  @@index([tripId, revision])
+  @@index([entityType, entityId])
+  @@index([actorId])
+}
+
+model MutationEvent {
+  id               String   @id @default(uuid()) @db.Uuid
+  tripId           String   @db.Uuid
+  actorId          String?  @db.Uuid
+  deviceId         String?  @db.VarChar(128)
+  clientMutationId String?  @db.VarChar(120)
+  entityType       String   @db.VarChar(80)
+  entityId         String?  @db.Uuid
+  operation        String   @db.VarChar(80)
+  payload          Json?
+  revision         BigInt
+  createdAt        DateTime @default(now())
+
+  trip  Trip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@unique([tripId, revision])
+  @@index([tripId, createdAt])
+  @@index([tripId, clientMutationId])
   @@index([entityType, entityId])
   @@index([actorId])
 }

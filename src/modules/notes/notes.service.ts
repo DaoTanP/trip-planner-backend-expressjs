@@ -2,12 +2,17 @@ import type { Prisma } from '@prisma/client';
 
 import { ConflictError } from '@/common/errors/conflict-error.js';
 import { NotFoundError } from '@/common/errors/not-found-error.js';
+import type { AuthenticatedUser } from '@/common/types/authenticated-user.js';
 import { normalizeCursorLimit } from '@/common/utils/cursor-pagination.js';
+import {
+  collaborationService,
+  type CollaborationService
+} from '@/modules/collaboration/collaboration.service.js';
 import { notesRepository, type NotesRepository } from '@/modules/notes/notes.repository.js';
 import type {
   CreateNoteInput,
+  DeleteNoteQuery,
   ListNotesQuery,
-  NoteTargetEntityType,
   UpdateNoteInput
 } from '@/modules/notes/notes.schemas.js';
 import { tripsService, type TripsService } from '@/modules/trips/trips.service.js';
@@ -15,56 +20,84 @@ import { tripsService, type TripsService } from '@/modules/trips/trips.service.j
 export class NotesService {
   constructor(
     private readonly repository: NotesRepository = notesRepository,
-    private readonly trips: TripsService = tripsService
+    private readonly trips: TripsService = tripsService,
+    private readonly collaboration: CollaborationService = collaborationService
   ) {}
 
-  async listNotes(userId: string, tripId: string, query: ListNotesQuery) {
-    await this.trips.ensureCanAccessTrip(userId, tripId);
+  async listNotes(actor: AuthenticatedUser, query: ListNotesQuery) {
+    if (!query.tripId && (!query.targetEntityType || !query.targetEntityId)) {
+      throw new ConflictError('Notes require a trip or target filter');
+    }
 
-    return this.repository.listForTrip(tripId, {
+    if (query.tripId) {
+      await this.trips.ensureCanAccessTrip(actor.id, query.tripId, actor.role);
+    }
+
+    if (query.targetEntityType && query.targetEntityId) {
+      await this.collaboration.resolveWritableTarget(
+        actor,
+        query.targetEntityType,
+        query.targetEntityId,
+        query.tripId
+      );
+    }
+
+    return this.repository.list({
       cursor: query.cursor,
       limit: normalizeCursorLimit(query.limit),
+      tripId: query.tripId,
       targetEntityType: query.targetEntityType,
-      targetEntityId: query.targetEntityId
+      targetEntityId: query.targetEntityId,
+      parentNoteId: query.parentNoteId
     });
   }
 
-  async createNote(userId: string, tripId: string, input: CreateNoteInput) {
-    await this.trips.ensureCanEditTrip(userId, tripId);
+  async createNote(actor: AuthenticatedUser, input: CreateNoteInput) {
+    const target = await this.collaboration.resolveWritableTarget(
+      actor,
+      input.targetEntityType,
+      input.targetEntityId,
+      input.tripId
+    );
 
-    const targetEntityType = input.targetEntityType ?? 'TRIP';
-    const targetEntityId = input.targetEntityId ?? tripId;
-    await this.ensureTargetBelongsToTrip(tripId, targetEntityType, targetEntityId);
+    if (input.parentNoteId) {
+      await this.ensureParentMatchesTarget(input.parentNoteId, target);
+    }
 
     const data: Prisma.NoteUncheckedCreateInput = {
-      tripId,
-      authorId: userId,
-      targetEntityType,
-      targetEntityId,
+      tripId: target.tripId,
+      authorId: actor.id,
+      targetEntityType: target.targetEntityType,
+      targetEntityId: target.targetEntityId,
       body: input.body
     };
 
-    if (input.clientMutationId !== undefined) {
-      data.lastClientMutationId = input.clientMutationId;
-    }
-    if (input.metadata !== undefined) {
-      data.metadata = input.metadata;
-    }
+    if (input.parentNoteId !== undefined) data.parentNoteId = input.parentNoteId;
+    if (input.clientMutationId !== undefined) data.lastClientMutationId = input.clientMutationId;
+    if (input.mentions !== undefined) data.mentions = input.mentions;
+    if (input.attachments !== undefined) data.attachments = input.attachments;
+    if (input.metadata !== undefined) data.metadata = input.metadata;
 
     return this.repository.createNote(data, {
-      actorId: userId,
+      tripId: target.tripId,
+      actorId: actor.id,
+      deviceId: input.deviceId,
       clientMutationId: input.clientMutationId,
       operation: 'CREATE'
     });
   }
 
-  async updateNote(userId: string, noteId: string, input: UpdateNoteInput) {
+  async updateNote(actor: AuthenticatedUser, noteId: string, input: UpdateNoteInput) {
     const access = await this.repository.findNoteAccess(noteId);
-    if (!access) {
+    if (!access || access.deletedAt) {
       throw new NotFoundError({ resourceKey: 'resources.note' });
     }
 
-    await this.trips.ensureCanEditTrip(userId, access.tripId);
+    await this.collaboration.ensureCanManageNote(actor, access);
+
+    if (!access.tripId) {
+      throw new ConflictError('Note mutation requires a trip revision scope');
+    }
 
     if (input.expectedVersion !== undefined && input.expectedVersion !== access.version) {
       throw new ConflictError('Note version conflict');
@@ -74,48 +107,61 @@ export class NotesService {
       version: { increment: 1 }
     };
 
-    if (input.clientMutationId !== undefined) {
-      data.lastClientMutationId = input.clientMutationId;
-    }
+    if (input.clientMutationId !== undefined) data.lastClientMutationId = input.clientMutationId;
     if (input.body !== undefined) data.body = input.body;
+    if (input.mentions !== undefined) data.mentions = input.mentions;
+    if (input.attachments !== undefined) data.attachments = input.attachments;
     if (input.metadata !== undefined) data.metadata = input.metadata;
 
     return this.repository.updateNote(noteId, data, {
       tripId: access.tripId,
-      actorId: userId,
+      actorId: actor.id,
+      deviceId: input.deviceId,
       clientMutationId: input.clientMutationId,
       operation: 'UPDATE'
     });
   }
 
-  async deleteNote(
-    userId: string,
-    noteId: string,
-    clientMutationId?: string | undefined
-  ): Promise<void> {
+  async deleteNote(actor: AuthenticatedUser, noteId: string, query: DeleteNoteQuery) {
     const access = await this.repository.findNoteAccess(noteId);
-    if (!access) {
+    if (!access || access.deletedAt) {
       throw new NotFoundError({ resourceKey: 'resources.note' });
     }
 
-    await this.trips.ensureCanEditTrip(userId, access.tripId);
-    await this.repository.softDeleteNote(noteId, {
+    await this.collaboration.ensureCanManageNote(actor, access);
+
+    if (!access.tripId) {
+      throw new ConflictError('Note mutation requires a trip revision scope');
+    }
+
+    return this.repository.softDeleteNote(noteId, {
       tripId: access.tripId,
-      actorId: userId,
-      clientMutationId,
+      actorId: actor.id,
+      deviceId: query.deviceId,
+      clientMutationId: query.clientMutationId,
       operation: 'DELETE'
     });
   }
 
-  private async ensureTargetBelongsToTrip(
-    tripId: string,
-    targetEntityType: NoteTargetEntityType,
-    targetEntityId: string
+  private async ensureParentMatchesTarget(
+    parentNoteId: string,
+    target: {
+      tripId: string;
+      targetEntityType: CreateNoteInput['targetEntityType'];
+      targetEntityId: string;
+    }
   ) {
-    const targetTripId = await this.repository.findTargetTripId(targetEntityType, targetEntityId);
+    const parent = await this.repository.findNoteAccess(parentNoteId);
+    if (!parent || parent.deletedAt) {
+      throw new NotFoundError({ resourceKey: 'resources.note' });
+    }
 
-    if (targetTripId !== tripId) {
-      throw new ConflictError('Note target is outside this trip');
+    if (
+      parent.tripId !== target.tripId ||
+      parent.targetEntityType !== target.targetEntityType ||
+      parent.targetEntityId !== target.targetEntityId
+    ) {
+      throw new ConflictError('Reply target must match parent note target');
     }
   }
 }

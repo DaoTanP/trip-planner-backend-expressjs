@@ -6,8 +6,9 @@ import {
   encodeCursor,
   type CursorPage
 } from '@/common/utils/cursor-pagination.js';
+import { registerCollaborationEntity } from '@/modules/collaboration/collaboration-entity-registry.js';
+import { appendMutationEvent } from '@/modules/sync/mutation-event-log.js';
 import { prisma } from '@/prisma/client.js';
-import type { NoteTargetEntityType } from '@/modules/notes/notes.schemas.js';
 
 type CreatedAtCursor = {
   createdAt: string;
@@ -15,9 +16,41 @@ type CreatedAtCursor = {
 };
 
 type NoteMutationInput = {
+  tripId: string;
   actorId: string;
+  deviceId?: string | undefined;
   clientMutationId?: string | undefined;
   operation: string;
+};
+
+export type NoteAccessRecord = Pick<
+  Note,
+  | 'id'
+  | 'tripId'
+  | 'authorId'
+  | 'parentNoteId'
+  | 'targetEntityType'
+  | 'targetEntityId'
+  | 'version'
+  | 'deletedAt'
+>;
+
+const noteInclude = {
+  author: {
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      avatarUrl: true
+    }
+  }
+} satisfies Prisma.NoteInclude;
+
+export type NoteRecord = Prisma.NoteGetPayload<{ include: typeof noteInclude }>;
+
+type NoteMutationResult = {
+  note: NoteRecord;
+  revision: bigint;
 };
 
 const createdAtOrderBy = [
@@ -45,22 +78,23 @@ const noteCursor = (note: Note): string =>
   });
 
 export class NotesRepository {
-  async listForTrip(
-    tripId: string,
-    filters: {
-      cursor?: string;
-      limit: number;
-      targetEntityType?: string | undefined;
-      targetEntityId?: string | undefined;
-    }
-  ): Promise<CursorPage<Note>> {
+  async list(filters: {
+    cursor?: string | undefined;
+    limit: number;
+    tripId?: string | undefined;
+    targetEntityType?: Note['targetEntityType'] | undefined;
+    targetEntityId?: string | undefined;
+    parentNoteId?: string | undefined;
+  }): Promise<CursorPage<NoteRecord>> {
     const cursor = decodeCursor<CreatedAtCursor>(filters.cursor);
     const where: Prisma.NoteWhereInput = {
-      tripId,
-      deletedAt: null,
+      parentNoteId: filters.parentNoteId ?? null,
       ...createdAtCursorWhere(cursor)
     };
 
+    if (filters.tripId !== undefined) {
+      where.tripId = filters.tripId;
+    }
     if (filters.targetEntityType !== undefined) {
       where.targetEntityType = filters.targetEntityType;
     }
@@ -70,6 +104,7 @@ export class NotesRepository {
 
     const items = await prisma.note.findMany({
       where,
+      include: noteInclude,
       orderBy: createdAtOrderBy,
       take: filters.limit + 1
     });
@@ -77,48 +112,75 @@ export class NotesRepository {
     return buildCursorPage(items, filters.limit, noteCursor);
   }
 
-  createNote(data: Prisma.NoteUncheckedCreateInput, mutation: NoteMutationInput): Promise<Note> {
+  createNote(
+    data: Prisma.NoteUncheckedCreateInput,
+    mutation: NoteMutationInput
+  ): Promise<NoteMutationResult> {
     return prisma.$transaction(async (tx) => {
-      const note = await tx.note.create({ data });
-      await this.recordClientMutation(tx, {
-        ...mutation,
-        tripId: note.tripId,
+      const note = await tx.note.create({
+        data,
+        include: noteInclude
+      });
+      await registerCollaborationEntity(tx, {
         entityType: 'NOTE',
-        entityId: note.id
+        entityId: note.id,
+        tripId: note.tripId
+      });
+      const revision = await appendMutationEvent(tx, {
+        ...mutation,
+        entityType: 'NOTE',
+        entityId: note.id,
+        payload: {
+          noteId: note.id,
+          targetEntityType: note.targetEntityType,
+          targetEntityId: note.targetEntityId,
+          parentNoteId: note.parentNoteId
+        }
       });
 
-      return note;
+      return { note, revision };
     });
   }
 
-  findNoteAccess(noteId: string): Promise<{ tripId: string; version: number } | null> {
+  findNoteAccess(noteId: string): Promise<NoteAccessRecord | null> {
     return prisma.note.findFirst({
-      where: { id: noteId, deletedAt: null },
-      select: { tripId: true, version: true }
+      where: { id: noteId },
+      select: {
+        id: true,
+        tripId: true,
+        authorId: true,
+        parentNoteId: true,
+        targetEntityType: true,
+        targetEntityId: true,
+        version: true,
+        deletedAt: true
+      }
     });
   }
 
   updateNote(
     noteId: string,
     data: Prisma.NoteUpdateInput,
-    mutation: NoteMutationInput & { tripId: string }
-  ): Promise<Note> {
+    mutation: NoteMutationInput
+  ): Promise<NoteMutationResult> {
     return prisma.$transaction(async (tx) => {
       const note = await tx.note.update({
         where: { id: noteId },
-        data
+        data,
+        include: noteInclude
       });
-      await this.recordClientMutation(tx, {
+      const revision = await appendMutationEvent(tx, {
         ...mutation,
         entityType: 'NOTE',
-        entityId: note.id
+        entityId: note.id,
+        payload: { noteId: note.id, version: note.version }
       });
 
-      return note;
+      return { note, revision };
     });
   }
 
-  softDeleteNote(noteId: string, mutation: NoteMutationInput & { tripId: string }): Promise<Note> {
+  softDeleteNote(noteId: string, mutation: NoteMutationInput): Promise<NoteMutationResult> {
     return prisma.$transaction(async (tx) => {
       const note = await tx.note.update({
         where: { id: noteId },
@@ -126,81 +188,17 @@ export class NotesRepository {
           deletedAt: new Date(),
           version: { increment: 1 },
           ...(mutation.clientMutationId ? { lastClientMutationId: mutation.clientMutationId } : {})
-        }
+        },
+        include: noteInclude
       });
-      await this.recordClientMutation(tx, {
+      const revision = await appendMutationEvent(tx, {
         ...mutation,
         entityType: 'NOTE',
-        entityId: note.id
+        entityId: note.id,
+        payload: { noteId: note.id, version: note.version }
       });
 
-      return note;
-    });
-  }
-
-  async findTargetTripId(
-    targetEntityType: NoteTargetEntityType,
-    targetEntityId: string
-  ): Promise<string | null> {
-    if (targetEntityType === 'TRIP') {
-      const trip = await prisma.trip.findUnique({
-        where: { id: targetEntityId },
-        select: { id: true }
-      });
-
-      return trip?.id ?? null;
-    }
-
-    if (targetEntityType === 'ITINERARY_ITEM') {
-      const item = await prisma.itineraryItem.findFirst({
-        where: { id: targetEntityId, deletedAt: null },
-        select: { tripId: true }
-      });
-
-      return item?.tripId ?? null;
-    }
-
-    if (targetEntityType === 'EXPENSE') {
-      const expense = await prisma.expense.findFirst({
-        where: { id: targetEntityId, deletedAt: null },
-        select: { tripId: true }
-      });
-
-      return expense?.tripId ?? null;
-    }
-
-    const route = await prisma.routeSegment.findFirst({
-      where: { id: targetEntityId, deletedAt: null },
-      select: { tripId: true }
-    });
-
-    return route?.tripId ?? null;
-  }
-
-  private recordClientMutation(
-    tx: Prisma.TransactionClient,
-    input: NoteMutationInput & {
-      tripId: string;
-      entityType: string;
-      entityId: string;
-    }
-  ) {
-    if (!input.clientMutationId) {
-      return Promise.resolve();
-    }
-
-    return tx.clientMutation.createMany({
-      data: [
-        {
-          tripId: input.tripId,
-          actorId: input.actorId,
-          clientMutationId: input.clientMutationId,
-          entityType: input.entityType,
-          entityId: input.entityId,
-          operation: input.operation
-        }
-      ],
-      skipDuplicates: true
+      return { note, revision };
     });
   }
 }

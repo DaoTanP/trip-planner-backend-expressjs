@@ -4,6 +4,7 @@ import type {
   ExpenseDto,
   ItineraryItemDto,
   CommentDto,
+  MutationEventDto,
   NoteDto,
   PlaceDto,
   RouteSegmentDto,
@@ -69,6 +70,9 @@ type RouteSegmentRecord = {
   provider: RouteSegmentDto['provider'];
   travelMode: string;
   routeProfileHash: string;
+  departureTime?: Date | string | null;
+  trafficModel?: string | null;
+  alternativeIndex?: number;
   polyline: string;
   distanceMeters: number | null;
   durationSeconds: number | null;
@@ -82,16 +86,20 @@ type RouteSegmentRecord = {
 
 type NoteRecord = {
   id: string;
-  tripId: string;
+  tripId: string | null;
   authorId: string | null;
-  targetEntityType: string;
+  parentNoteId?: string | null;
+  targetEntityType: NoteDto['targetEntityType'];
   targetEntityId: string;
   body: string;
+  mentions?: unknown;
+  attachments?: unknown;
   metadata?: unknown;
   version?: number;
   createdAt: Date | string;
   updatedAt: Date | string;
   deletedAt?: Date | string | null;
+  author?: NoteDto['author'];
 };
 
 type TripSummaryRecord = {
@@ -105,6 +113,7 @@ type TripSummaryRecord = {
   status: TripSummaryDto['status'];
   coverImageUrl: string | null;
   version?: number;
+  revision?: bigint | number | string;
   createdAt: Date | string;
   updatedAt: Date | string;
   _count?: {
@@ -193,6 +202,20 @@ type CommentRecord = {
   deletedAt?: Date | string | null;
 };
 
+type MutationEventRecord = {
+  id: string;
+  tripId: string;
+  actorId: string | null;
+  deviceId?: string | null;
+  clientMutationId: string | null;
+  entityType: string;
+  entityId: string | null;
+  operation: string;
+  payload?: unknown;
+  revision: bigint | number | string;
+  createdAt: Date | string;
+};
+
 const toDateOnly = (value: Date | string | null): string | null => {
   if (!value) {
     return null;
@@ -228,6 +251,9 @@ const toNumber = (value: DecimalLike): number | null => {
 
   return value.toNumber();
 };
+
+const toRevisionString = (value: bigint | number | string | null | undefined): string =>
+  value === null || value === undefined ? '0' : value.toString();
 
 const toJsonRecord = (value: unknown): JsonRecord => {
   if (value === null || value === undefined) {
@@ -292,6 +318,9 @@ export const serializeRouteSegment = (route: RouteSegmentRecord): RouteSegmentDt
   provider: route.provider,
   travelMode: route.travelMode,
   routeProfileHash: route.routeProfileHash,
+  departureTime: toIsoString(route.departureTime ?? null),
+  trafficModel: route.trafficModel ?? null,
+  alternativeIndex: route.alternativeIndex ?? 0,
   polyline: route.polyline,
   distanceMeters: route.distanceMeters,
   durationSeconds: route.durationSeconds,
@@ -307,14 +336,18 @@ export const serializeNote = (note: NoteRecord): NoteDto => ({
   id: note.id,
   tripId: note.tripId,
   authorId: note.authorId,
+  parentNoteId: note.parentNoteId ?? null,
   targetEntityType: note.targetEntityType,
   targetEntityId: note.targetEntityId,
   body: note.body,
+  mentions: note.mentions === undefined ? null : (note.mentions as NoteDto['mentions']),
+  attachments: note.attachments === undefined ? null : (note.attachments as NoteDto['attachments']),
   metadata: toJsonRecord(note.metadata),
   version: note.version ?? 1,
   createdAt: toIsoString(note.createdAt) ?? '',
   updatedAt: toIsoString(note.updatedAt) ?? '',
-  deletedAt: toIsoString(note.deletedAt ?? null)
+  deletedAt: toIsoString(note.deletedAt ?? null),
+  author: note.author ?? null
 });
 
 export const serializeTripSummary = (trip: TripSummaryRecord): TripSummaryDto => ({
@@ -332,6 +365,7 @@ export const serializeTripSummary = (trip: TripSummaryRecord): TripSummaryDto =>
   noteCount: trip._count?.notes ?? 0,
   routeSegmentCount: trip._count?.routeSegments ?? 0,
   version: trip.version ?? 1,
+  revision: toRevisionString(trip.revision),
   createdAt: toIsoString(trip.createdAt) ?? '',
   updatedAt: toIsoString(trip.updatedAt) ?? ''
 });
@@ -421,4 +455,18 @@ export const serializeComment = (comment: CommentRecord): CommentDto => ({
   createdAt: toIsoString(comment.createdAt) ?? '',
   updatedAt: toIsoString(comment.updatedAt) ?? '',
   deletedAt: toIsoString(comment.deletedAt ?? null)
+});
+
+export const serializeMutationEvent = (event: MutationEventRecord): MutationEventDto => ({
+  id: event.id,
+  tripId: event.tripId,
+  actorId: event.actorId,
+  deviceId: event.deviceId ?? null,
+  clientMutationId: event.clientMutationId,
+  entityType: event.entityType,
+  entityId: event.entityId,
+  operation: event.operation,
+  payload: toJsonRecord(event.payload),
+  revision: toRevisionString(event.revision),
+  createdAt: toIsoString(event.createdAt) ?? ''
 });

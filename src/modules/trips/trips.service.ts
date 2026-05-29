@@ -1,4 +1,4 @@
-import type { Prisma, TripRole } from '@prisma/client';
+import type { Prisma, TripRole, UserRole } from '@prisma/client';
 
 import { AuthorizationError } from '@/common/errors/authorization-error.js';
 import { NotFoundError } from '@/common/errors/not-found-error.js';
@@ -13,6 +13,14 @@ import type {
 import { tripsRepository, type TripsRepository } from '@/modules/trips/trips.repository.js';
 
 const editableRoles: TripRole[] = ['OWNER', 'EDITOR'];
+
+export type TripAccessContext = {
+  tripId: string;
+  role: TripRole | 'ADMIN';
+  isOwner: boolean;
+  canEdit: boolean;
+  canModerate: boolean;
+};
 
 export class TripsService {
   constructor(private readonly repository: TripsRepository = tripsRepository) {}
@@ -55,7 +63,7 @@ export class TripsService {
     if (input.endDate) data.endDate = parseDateOnly(input.endDate);
     if (input.preferences !== undefined) data.preferences = input.preferences;
 
-    return this.repository.create(data);
+    return this.repository.create(data, userId);
   }
 
   async getTrip(userId: string, tripId: string) {
@@ -87,7 +95,11 @@ export class TripsService {
     if (input.metadata !== undefined) data.metadata = input.metadata;
     data.version = { increment: 1 };
 
-    await this.repository.update(tripId, data);
+    await this.repository.update(tripId, data, {
+      actorId: userId,
+      clientMutationId: input.clientMutationId,
+      deviceId: input.deviceId
+    });
 
     const trip = await this.repository.findById(tripId);
     if (!trip) {
@@ -124,14 +136,26 @@ export class TripsService {
     });
   }
 
-  async ensureCanAccessTrip(userId: string, tripId: string): Promise<void> {
-    const access = await this.repository.findAccess(tripId, userId);
-    if (!access) {
-      throw new NotFoundError({ resourceKey: 'resources.trip' });
-    }
-  }
+  async getAccessContext(
+    userId: string,
+    tripId: string,
+    userRole?: UserRole
+  ): Promise<TripAccessContext> {
+    if (userRole === 'ADMIN') {
+      const trip = await this.repository.findIdentity(tripId);
+      if (!trip) {
+        throw new NotFoundError({ resourceKey: 'resources.trip' });
+      }
 
-  async ensureCanEditTrip(userId: string, tripId: string): Promise<void> {
+      return {
+        tripId,
+        role: 'ADMIN',
+        isOwner: trip.ownerId === userId,
+        canEdit: true,
+        canModerate: true
+      };
+    }
+
     const access = await this.repository.findAccess(tripId, userId);
     if (!access) {
       throw new NotFoundError({ resourceKey: 'resources.trip' });
@@ -139,7 +163,23 @@ export class TripsService {
 
     const role: TripRole =
       access.ownerId === userId ? 'OWNER' : (access.collaborators[0]?.role ?? 'VIEWER');
-    if (!editableRoles.includes(role)) {
+
+    return {
+      tripId,
+      role,
+      isOwner: access.ownerId === userId,
+      canEdit: editableRoles.includes(role),
+      canModerate: role === 'OWNER'
+    };
+  }
+
+  async ensureCanAccessTrip(userId: string, tripId: string, userRole?: UserRole): Promise<void> {
+    await this.getAccessContext(userId, tripId, userRole);
+  }
+
+  async ensureCanEditTrip(userId: string, tripId: string, userRole?: UserRole): Promise<void> {
+    const access = await this.getAccessContext(userId, tripId, userRole);
+    if (!access.canEdit) {
       throw new AuthorizationError();
     }
   }

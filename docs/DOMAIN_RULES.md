@@ -8,7 +8,7 @@ This document defines stable business rules and domain invariants for the Trip P
 - Trip: a planned travel experience owned by exactly one user.
 - Itinerary item: a planned stop, activity, reminder, booking, lodging, transport leg, or flexible idea directly inside a trip timeline.
 - Presentation group: an optional UI grouping such as date, location, section, morning/evening, or custom label.
-- Note: free-form planning text attached to a trip-scoped target entity.
+- Note: free-form collaborative planning text attached to a typed target entity through the collaboration registry.
 - Place: a reusable location record that may be attached to itinerary items and route segments.
 - Route segment: cached provider route geometry between two places for a travel mode.
 - Collaborator: a user or invited email with access to a trip.
@@ -43,7 +43,7 @@ ItineraryItem may reference one Place
 ItineraryItem may reference one RouteSegment
 RouteSegment references from/to Places
 Trip has many Notes
-Notes target trip-scoped entities by targetEntityType and targetEntityId
+Notes target collaborative entities by targetEntityType and targetEntityId
 Trip has many Collaborators
 Comments target trip-scoped entities by targetEntityType and targetEntityId
 User has many Notifications

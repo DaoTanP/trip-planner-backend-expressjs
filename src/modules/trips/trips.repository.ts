@@ -6,6 +6,8 @@ import {
   encodeCursor,
   type CursorPage
 } from '@/common/utils/cursor-pagination.js';
+import { registerCollaborationEntity } from '@/modules/collaboration/collaboration-entity-registry.js';
+import { appendMutationEvent } from '@/modules/sync/mutation-event-log.js';
 import { prisma } from '@/prisma/client.js';
 
 export type TripListFilters = {
@@ -100,9 +102,28 @@ export class TripsRepository {
     return { items, total };
   }
 
-  create(data: Prisma.TripUncheckedCreateInput): Promise<Trip> {
-    return prisma.trip.create({
-      data
+  create(data: Prisma.TripUncheckedCreateInput, actorId: string): Promise<Trip> {
+    return prisma.$transaction(async (tx) => {
+      const trip = await tx.trip.create({
+        data
+      });
+      await registerCollaborationEntity(tx, {
+        entityType: 'TRIP',
+        entityId: trip.id,
+        tripId: trip.id
+      });
+      await appendMutationEvent(tx, {
+        tripId: trip.id,
+        actorId,
+        entityType: 'TRIP',
+        entityId: trip.id,
+        operation: 'CREATE',
+        payload: { tripId: trip.id }
+      });
+
+      return tx.trip.findUniqueOrThrow({
+        where: { id: trip.id }
+      });
     });
   }
 
@@ -194,10 +215,42 @@ export class TripsRepository {
     });
   }
 
-  update(id: string, data: Prisma.TripUpdateInput): Promise<Trip> {
-    return prisma.trip.update({
-      where: { id },
-      data
+  findIdentity(tripId: string) {
+    return prisma.trip.findUnique({
+      where: { id: tripId },
+      select: {
+        id: true,
+        ownerId: true
+      }
+    });
+  }
+
+  update(
+    id: string,
+    data: Prisma.TripUpdateInput,
+    mutation: {
+      actorId: string;
+      clientMutationId?: string | undefined;
+      deviceId?: string | undefined;
+    }
+  ): Promise<Trip> {
+    return prisma.$transaction(async (tx) => {
+      const trip = await tx.trip.update({
+        where: { id },
+        data
+      });
+      await appendMutationEvent(tx, {
+        tripId: id,
+        actorId: mutation.actorId,
+        deviceId: mutation.deviceId,
+        clientMutationId: mutation.clientMutationId,
+        entityType: 'TRIP',
+        entityId: id,
+        operation: 'UPDATE',
+        payload: { tripId: id, version: trip.version }
+      });
+
+      return trip;
     });
   }
 

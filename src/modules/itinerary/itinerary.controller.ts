@@ -52,13 +52,14 @@ export class ItineraryController {
     req: Request<CreateTripItineraryItemParams, unknown, CreateItineraryItemInput>,
     res: Response
   ) => {
-    const item = await this.service.createItineraryItem(
+    const result = await this.service.createItineraryItem(
       requireUserId(req),
       req.params.tripId,
       req.body
     );
     return sendCreated(res, {
-      item: serializeItineraryItem(item),
+      item: serializeItineraryItem(result.item),
+      revision: result.revision.toString(),
       ...(req.body.clientMutationId ? { clientMutationId: req.body.clientMutationId } : {})
     });
   };
@@ -67,13 +68,14 @@ export class ItineraryController {
     req: Request<ItineraryItemIdParams, unknown, UpdateItineraryItemInput>,
     res: Response
   ) => {
-    const item = await this.service.updateItineraryItem(
+    const result = await this.service.updateItineraryItem(
       requireUserId(req),
       req.params.itemId,
       req.body
     );
     return sendSuccess(res, {
-      item: serializeItineraryItem(item),
+      item: serializeItineraryItem(result.item),
+      revision: result.revision.toString(),
       ...(req.body.clientMutationId ? { clientMutationId: req.body.clientMutationId } : {})
     });
   };
@@ -95,6 +97,7 @@ export class ItineraryController {
     return sendSuccess(res, {
       item: serializeItineraryItem(result.item),
       affectedItems: result.affectedItems.map(serializeItineraryItem),
+      revision: result.revision?.toString() ?? '0',
       ...(req.body.clientMutationId ? { clientMutationId: req.body.clientMutationId } : {})
     });
   };

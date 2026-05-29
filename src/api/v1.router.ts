@@ -7,6 +7,7 @@ import { notesRouter } from '@/modules/notes/notes.routes.js';
 import { notificationsRouter } from '@/modules/notifications/notifications.routes.js';
 import { placesRouter } from '@/modules/places/places.routes.js';
 import { routesRouter } from '@/modules/routes/routes.routes.js';
+import { syncRouter } from '@/modules/sync/sync.routes.js';
 import { tripsRouter } from '@/modules/trips/trips.routes.js';
 import { usersRouter } from '@/modules/users/users.routes.js';
 
@@ -18,6 +19,7 @@ apiV1Router.use('/', itineraryRouter);
 apiV1Router.use('/', routesRouter);
 apiV1Router.use('/', notesRouter);
 apiV1Router.use('/', commentsRouter);
+apiV1Router.use('/', syncRouter);
 apiV1Router.use('/trips', tripsRouter);
 apiV1Router.use('/places', placesRouter);
 apiV1Router.use('/notifications', notificationsRouter);

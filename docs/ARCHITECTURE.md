@@ -442,19 +442,22 @@ The trip editor reads separate resources:
 - `GET /trips/:tripId/itinerary` for flat itinerary items.
 - `GET /trips/:tripId/places` for normalized places used by the itinerary.
 - `GET /trips/:tripId/routes` for cached route geometry.
-- `GET /trips/:tripId/notes` for generic trip-scoped notes.
+- `GET /notes?tripId=...&targetEntityType=...&targetEntityId=...` for unified collaborative notes.
 - `GET /trips/:tripId/collaborators` for sharing state.
 - `GET /trips/:tripId/expenses` for budget analytics inputs.
+- `GET /trips/:tripId/mutation-events` for revision-based sync catch-up.
 
 Why: granular APIs keep payloads small, let TanStack Query invalidate only the changed resource, and make realtime/offline reconciliation possible without replacing a full trip graph after every mutation.
 
-`Note` is a generic collaboration entity scoped to a trip and attached with `targetEntityType` plus `targetEntityId`. Trip notes, itinerary notes, route notes, and future expense/collaborator notes use the same table and application-level target validation.
+`Note` is a unified collaboration entity attached with typed `targetEntityType` plus `targetEntityId`. Notes can target trips, itinerary items, expenses, places, route segments, and future collaboration surfaces without adding feature-specific note tables. `parentNoteId` supports threaded replies; `mentions`, `attachments`, and `metadata` are JSONB extension fields reserved for low-queryability collaboration payloads.
+
+Generic note targets are validated through `CollaborationEntity`, a lightweight registry keyed by `(entityType, entityId)` with an optional `tripId`. The registry centralizes collaboration ownership, future permissions, presence, reactions, tasks, and comments without adding polymorphic Prisma relations to every target table. Note mutations require a trip revision scope, increment `Trip.revision`, and append `MutationEvent` in the same transaction.
 
 ## 24. Cursor Pagination, Ordering, And Optimistic Updates
 
-Large collaboration resources use cursor pagination. Itinerary items page by `(sortOrder, id)`, while notes, comments, route segments, and expenses page by `(createdAt, id)`. Controllers return cursor metadata through `sendCursorPaginated` and `meta.pagination`.
+Large collaboration resources use cursor pagination. Itinerary items page by `(sortOrder, id)`, while notes, comments, route segments, and expenses page by `(createdAt, id)`. Cursor strings are opaque versioned envelopes, and controllers return `limit`, `cursorVersion`, `nextCursor`, and `hasNextPage` through `sendCursorPaginated` and `meta.pagination`.
 
-Itinerary ordering uses spaced integer positions: `1024`, `2048`, `3072`, and so on. Reorder endpoints are intent based: the client sends the moved item and its new neighbors, then the backend computes the next sparse order inside a transaction.
+Itinerary ordering uses large spaced integer positions: `65536`, `131072`, `196608`, and so on. Reorder endpoints are intent based: the client sends the moved item and its new neighbors, then the backend computes the next sparse order inside a transaction.
 
 ```json
 {
@@ -466,9 +469,11 @@ Itinerary ordering uses spaced integer positions: `1024`, `2048`, `3072`, and so
 }
 ```
 
-Services validate that the moved item and neighbors belong to the target trip before any writes occur. The common case updates only the moved row; a full sparse-order rebalance happens only when there is no gap left between neighbors.
+Services validate that the moved item and neighbors belong to the target trip before any writes occur. The common case updates only the moved row; a sparse-order rebalance happens only when there is no gap left between neighbors. Ordering helpers live with the itinerary module so a future LexoRank or fractional-indexing migration has one boundary.
 
-Mutations echo `clientMutationId` where useful, increment row `version`, and may reject stale `expectedVersion` values. A lightweight `ClientMutation` table records mutation IDs for idempotency, future websocket dedupe, and offline/mobile replay without introducing event sourcing.
+Mutations echo `clientMutationId` where useful, increment row `version`, and may reject stale `expectedVersion` values. A lightweight `ClientMutation` table records mutation IDs, device IDs, operations, and revisions for idempotency, future websocket dedupe, and offline/mobile replay.
+
+Every trip-affecting write also increments `Trip.revision` and appends a `MutationEvent` row in the same database transaction. `MutationEvent` is an append-only debugging, sync catch-up, and future fanout log; it is not event sourcing, and reads still come from normalized tables. Revisions are serialized as strings because PostgreSQL `BIGINT` can outgrow JavaScript's safe integer range.
 
 ## 25. Place And Route Provider Boundaries
 
@@ -481,7 +486,7 @@ Mutations echo `clientMutationId` where useful, increment row `version`, and may
 
 Future Google Places, Mapbox, or OSM geocoding adapters should normalize external records into the `Place` contract before returning them. Controllers should not call provider SDKs directly.
 
-`RouteSegment` stores provider, travel mode, from/to place IDs, route profile hash, encoded polyline, distance, duration, lifecycle timestamps, and JSON metadata for provider-specific details. Its uniqueness is provider + from place + to place + travel mode + route profile hash so Google, Mapbox, OSM, alternate routes, traffic-aware variants, and departure-time-sensitive variants can coexist. Route geometry is cacheable and reusable; it must not replace normalized place coordinates as the source of truth.
+`RouteSegment` stores provider, travel mode, from/to place IDs, route profile hash, optional departure time, optional traffic model, alternative route index, encoded polyline, distance, duration, lifecycle timestamps, expiration, and JSON metadata for provider-specific details. Its uniqueness is provider + from place + to place + travel mode + route profile hash + alternative index so Google, Mapbox, OSM, alternate routes, traffic-aware variants, and departure-time-sensitive variants can coexist. Route geometry is cacheable and reusable; it must not replace normalized place coordinates as the source of truth.
 
 Comments use `targetEntityType` and `targetEntityId` rather than one nullable column per target type. This keeps comments extensible for itinerary items, expenses, notes, routes, and future collaboration entities without adding schema branches for each feature.
 
@@ -491,9 +496,10 @@ Realtime collaboration should be added as a transport over the same domain servi
 
 Recommended future shape:
 
-- Services emit trip mutation events after committed writes.
+- Services append durable mutation events and increment trip revisions during the same committed write.
 - Redis coordinates websocket fanout, route cache reuse, and presence.
-- `clientMutationId` suppresses echo updates for the originating client.
+- `clientMutationId` and optional `deviceId` suppress echo updates for the originating client/device.
+- Clients can catch up with `GET /trips/:tripId/mutation-events?afterRevision=<revision>` before applying future websocket patches.
 - The frontend patches or invalidates granular React Query caches from realtime events.
 
 Do not let websocket handlers bypass `TripsService.ensureCanEditTrip` or itinerary service validation.

@@ -41,7 +41,7 @@ export class CommentsRepository {
   async listForTrip(
     tripId: string,
     filters: {
-      cursor?: string;
+      cursor?: string | undefined;
       limit: number;
       targetEntityType?: string | undefined;
       targetEntityId?: string | undefined;

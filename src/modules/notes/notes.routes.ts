@@ -6,24 +6,16 @@ import { asyncHandler } from '@/common/utils/async-handler.js';
 import { notesController } from '@/modules/notes/notes.controller.js';
 import {
   createNoteSchema,
+  deleteNoteSchema,
   listNotesSchema,
-  noteIdSchema,
   updateNoteSchema
 } from '@/modules/notes/notes.schemas.js';
 
 export const notesRouter = Router();
 
 notesRouter.use(authenticate);
-notesRouter.get(
-  '/trips/:tripId/notes',
-  validateRequest(listNotesSchema),
-  asyncHandler(notesController.list)
-);
-notesRouter.post(
-  '/trips/:tripId/notes',
-  validateRequest(createNoteSchema),
-  asyncHandler(notesController.create)
-);
+notesRouter.get('/notes', validateRequest(listNotesSchema), asyncHandler(notesController.list));
+notesRouter.post('/notes', validateRequest(createNoteSchema), asyncHandler(notesController.create));
 notesRouter.patch(
   '/notes/:noteId',
   validateRequest(updateNoteSchema),
@@ -31,6 +23,6 @@ notesRouter.patch(
 );
 notesRouter.delete(
   '/notes/:noteId',
-  validateRequest(noteIdSchema),
+  validateRequest(deleteNoteSchema),
   asyncHandler(notesController.delete)
 );

@@ -571,14 +571,18 @@ const secret = env.JWT_ACCESS_SECRET;
 - Reorder endpoints must run in transactions.
 - Reorder APIs must be intent based: clients send `itemId`, optional `beforeItemId`, optional `afterItemId`, `expectedVersion`, and `clientMutationId`; the backend computes `sortOrder`.
 - Reorder services must validate that the moved item and neighbor IDs belong to the target trip.
-- Use stable spaced `sortOrder` values (`1024`, `2048`, `3072`) and avoid sequential indexes that force mass rewrites.
+- Use stable spaced `sortOrder` values (`65536`, `131072`, `196608`) and avoid sequential indexes that force mass rewrites.
 - Rebalance sparse order only when no gap remains between neighbors.
-- Use `clientMutationId` and row `version`/`expectedVersion` on optimistic APIs when a frontend interaction may also receive a future realtime event.
+- Use `clientMutationId`, optional `deviceId`, row `version`/`expectedVersion`, and trip `revision` on optimistic APIs when a frontend interaction may also receive a future realtime event.
 - Persist `clientMutationId` through `ClientMutation` for collaborative entities when the mutation can be replayed or echoed by future realtime/offline flows.
+- Append `MutationEvent` and increment `Trip.revision` in the same transaction as trip-affecting writes. Do not create a parallel event-sourced write path.
+- Use `GET /trips/:tripId/mutation-events?afterRevision=...` only as a sync catch-up/debug boundary. Normal reads still come from normalized resource endpoints.
 - Keep place provider integration behind `places.service.ts` or provider adapters. Controllers must not call Google, Mapbox, or OSM directly.
 - Route geometry belongs in `RouteSegment`; do not duplicate polylines across itinerary item payloads in new code.
-- Route cache identity must include provider, from place, to place, travel mode, and route profile hash.
-- Notes are generic collaboration records with `targetEntityType` and `targetEntityId`; do not add new `TripNote` or `ItineraryNote` tables.
+- Route cache identity must include provider, from place, to place, travel mode, route profile hash, and alternate route index. Use typed columns for departure time, traffic model, expiration, and common routing fields; reserve JSONB metadata for provider-specific payloads.
+- Notes are unified collaborative records with typed `targetEntityType`, `targetEntityId`, optional `parentNoteId`, author ownership, soft delete, row `version`, and mutation-event logging; do not add new `TripNote`, `ItineraryNote`, `ExpenseNote`, or `PlaceNote` tables.
+- Generic note targets must be validated through the `CollaborationEntity` registry. Do not add polymorphic Prisma relations or duplicate permission checks in each target module.
+- Use `/notes` with `tripId`, `targetEntityType`, `targetEntityId`, `parentNoteId`, cursor, and limit filters. Do not add new entity-specific note endpoints.
 - Comments must use generic `targetEntityType` and `targetEntityId`, not feature-specific nullable target columns.
 - Cursor pagination is required for itinerary items, notes, comments, route segments, and expenses.
 - Do not reintroduce `Destination` for itinerary activity locations; use normalized `Place` records and flat itinerary items.

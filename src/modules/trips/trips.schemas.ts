@@ -6,6 +6,8 @@ import { dateOnlyStringSchema, timezoneSchema } from '@/common/localization/sche
 
 const dateOnlySchema = dateOnlyStringSchema;
 const uuidParam = z.string().uuid();
+const clientMutationIdSchema = z.string().trim().max(120).optional();
+const deviceIdSchema = z.string().trim().max(128).optional();
 
 export const listTripsSchema = z.object({
   query: z.object({
@@ -52,7 +54,9 @@ export const updateTripSchema = z.object({
       status: z.nativeEnum(TripStatus).optional(),
       coverImageUrl: z.string().url().nullable().optional(),
       preferences: z.record(z.unknown()).nullable().optional(),
-      metadata: z.record(z.unknown()).nullable().optional()
+      metadata: z.record(z.unknown()).nullable().optional(),
+      clientMutationId: clientMutationIdSchema,
+      deviceId: deviceIdSchema
     })
     .refine((value) => !value.startDate || !value.endDate || value.startDate <= value.endDate, {
       message: 'validation.dateRange.startBeforeEnd'
