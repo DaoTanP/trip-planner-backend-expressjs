@@ -513,3 +513,9 @@ Do not let websocket handlers bypass `TripsService.ensureCanEditTrip` or itinera
 `GET /trips/:tripId/mutation-events` supports `sinceRevision`, legacy `afterRevision`, `cursor`, and `limit`. Results are ordered by `(revision, id)` and return `latestRevision`, `hasMore`, and `nextCursor`. Consumers should apply events in response order and persist the latest applied revision separately from UI state.
 
 Delta sync is a catch-up boundary, not a replacement for normalized reads. If a client detects a revision gap, it should fetch mutation events, apply patch payloads to granular caches, and fall back to refetching the affected resource only when an event cannot be applied deterministically.
+
+## 28. Planner Workspace API Boundary
+
+The planner workspace is a frontend composition over granular resources. Backend APIs provide normalized trip metadata, itinerary items, places, route segments, notes, collaborators, expenses, and mutation events. The backend should not add a nested planner workspace DTO, `TripDay` grouping, or form-specific trip editor response.
+
+Planner UX features such as derived date range, timeline grouping, route-gap warnings, idle-gap warnings, selected-item note panels, map hover state, and command palette state are client concerns. Add backend endpoints only when the computation is expensive, permission-sensitive, or shared across clients, and keep those endpoints normalized and cacheable.

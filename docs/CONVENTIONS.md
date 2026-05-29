@@ -589,4 +589,6 @@ const secret = env.JWT_ACCESS_SECRET;
 - Cursor pagination is required for itinerary items, notes, comments, route segments, and expenses.
 - Do not reintroduce `Destination` for itinerary activity locations; use normalized `Place` records and flat itinerary items.
 - Budget data belongs in normalized `Budget`, `Expense`, and `ExpenseCategory` entities; do not add new trip-level budget JSON.
+- Planner workspace summaries should remain frontend-derived unless there is a clear cross-client or expensive-query reason to add a normalized endpoint.
+- Do not add nested planner workspace DTOs, backend-owned grouping DTOs, or map-provider-specific editor payloads.
 - Add new trip editor environment variables to `.env.example`, `docker-compose.yml`, and `src/config/env.ts`.
