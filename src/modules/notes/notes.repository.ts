@@ -6,7 +6,6 @@ import {
   encodeCursor,
   type CursorPage
 } from '@/common/utils/cursor-pagination.js';
-import { registerCollaborationEntity } from '@/modules/collaboration/collaboration-entity-registry.js';
 import {
   appendMutationEvent,
   createEntityPatchPayload,
@@ -24,7 +23,6 @@ type NoteMutationInput = {
   actorId: string;
   deviceId?: string | undefined;
   clientMutationId?: string | undefined;
-  operation: string;
 };
 
 export type NoteAccessRecord = Pick<
@@ -51,6 +49,11 @@ const noteInclude = {
 } satisfies Prisma.NoteInclude;
 
 export type NoteRecord = Prisma.NoteGetPayload<{ include: typeof noteInclude }>;
+
+export type NoteTargetLookupResult = {
+  exists: boolean;
+  tripId: string | null;
+};
 
 type NoteMutationResult = {
   note: NoteRecord;
@@ -118,6 +121,7 @@ export class NotesRepository {
     const cursor = decodeCursor<CreatedAtCursor>(filters.cursor);
     const where: Prisma.NoteWhereInput = {
       parentNoteId: filters.parentNoteId ?? null,
+      deletedAt: null,
       ...createdAtCursorWhere(cursor)
     };
 
@@ -150,11 +154,6 @@ export class NotesRepository {
         data,
         include: noteInclude
       });
-      await registerCollaborationEntity(tx, {
-        entityType: 'NOTE',
-        entityId: note.id,
-        tripId: note.tripId
-      });
       const revision = await appendMutationEvent(tx, {
         ...mutation,
         entityType: 'NOTE',
@@ -170,6 +169,44 @@ export class NotesRepository {
 
       return { note, revision };
     });
+  }
+
+  async findTarget(
+    targetEntityType: Note['targetEntityType'],
+    targetEntityId: string
+  ): Promise<NoteTargetLookupResult> {
+    switch (targetEntityType) {
+      case 'TRIP': {
+        const trip = await prisma.trip.findUnique({
+          where: { id: targetEntityId },
+          select: { id: true }
+        });
+        return { exists: Boolean(trip), tripId: trip?.id ?? null };
+      }
+      case 'ITINERARY_ITEM': {
+        const item = await prisma.itineraryItem.findFirst({
+          where: { id: targetEntityId, deletedAt: null },
+          select: { tripId: true }
+        });
+        return { exists: Boolean(item), tripId: item?.tripId ?? null };
+      }
+      case 'EXPENSE': {
+        const expense = await prisma.expense.findFirst({
+          where: { id: targetEntityId, deletedAt: null },
+          select: { tripId: true }
+        });
+        return { exists: Boolean(expense), tripId: expense?.tripId ?? null };
+      }
+      case 'PLACE': {
+        const place = await prisma.place.findUnique({
+          where: { id: targetEntityId },
+          select: { id: true }
+        });
+        return { exists: Boolean(place), tripId: null };
+      }
+    }
+
+    return { exists: false, tripId: null };
   }
 
   findNoteAccess(noteId: string): Promise<NoteAccessRecord | null> {

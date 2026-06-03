@@ -292,7 +292,7 @@ Before considering AI-generated code complete, verify:
 AI agents changing the trip editor backend must:
 
 - Keep trip editor writes behind `TripsService`, `ItineraryService`, or `PlacesService`.
-- Treat `ItineraryItem` as a trip-scoped first-class entity with direct `tripId`.
+- Treat `ItineraryItem` as a trip-scoped stop with direct `tripId`, required `placeId`, `types`, `summary`, `startsAt`, `durationMinutes`, `status`, and sparse `sortOrder`.
 - Keep day/date/location grouping presentation-only unless a future ADR explicitly reopens the decision.
 - Do not reintroduce `TripDay`, `legacyDayId`, day-based routes, or day-target comment enums.
 - Validate reorder payload ownership before transactional writes.
@@ -301,7 +301,9 @@ AI agents changing the trip editor backend must:
 - Append `MutationEvent` rows in the same transaction as trip-affecting writes. Treat the event log as a sync/fanout/debug foundation, not as event sourcing.
 - Keep `GET /trips/:tripId/mutation-events` revision-based and permission-checked through trip access rules.
 - Serialize trip detail responses through `trip.serializer.ts` and keep them metadata-only.
-- Return itinerary, generic notes, comments, places, routes, collaborators, and expenses through granular endpoints. Cursor paginate large collaborative resources.
+- Return itinerary, threaded notes, places, collaborators, expenses, budget configuration, and mutation events through granular endpoints. Cursor paginate large collaborative resources.
+- Treat `Expense` as the source of truth for spending and `Budget` as configuration only. Derived spending totals must come from expense queries.
+- Treat route output as derived data generated on demand. Do not persist route segments, cached polylines, route chains, or route synchronization state.
 - Update `src/api/contracts/v1.ts` and sync the frontend contract after API shape changes.
 - Add provider configuration to `src/config/env.ts`, `.env.example`, and Docker compose.
 
@@ -312,6 +314,6 @@ AI agents must not:
 - Move itinerary items across trips.
 - Reintroduce required `dayId` ownership for itinerary items.
 - Recreate `Destination` as an itinerary-location entity.
-- Recreate `TripNote`, `ItineraryNote`, or any entity-specific note table; notes attach through typed `targetEntityType` and `targetEntityId` and target validation belongs behind the collaboration registry.
+- Recreate `TripNote`, `ItineraryNote`, or any entity-specific note table; notes attach through typed `targetEntityType`, `targetEntityId`, and optional `parentNoteId`.
 - Couple place search to a single external provider in controllers.
 - Store route geometry as the source of truth for place coordinates.

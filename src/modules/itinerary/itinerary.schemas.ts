@@ -11,40 +11,22 @@ const deviceIdSchema = z.string().trim().max(128).optional();
 const revisionStringSchema = z.string().trim().regex(/^\d+$/).optional();
 
 const itineraryItemPayloadShape = {
-  placeId: uuidParam.nullable().optional(),
-  routeSegmentId: uuidParam.nullable().optional(),
-  type: z.nativeEnum(ItineraryItemType).optional(),
-  title: z.string().trim().min(1).max(180).optional(),
-  description: z.string().trim().max(5000).nullable().optional(),
-  timezone: timezoneSchema.optional(),
-  startTime: dateTimeSchema.nullable().optional(),
-  endTime: dateTimeSchema.nullable().optional(),
-  isFlexibleTime: z.boolean().optional(),
-  isAllDay: z.boolean().optional(),
+  placeId: uuidParam.optional(),
+  types: z.array(z.nativeEnum(ItineraryItemType)).min(1).optional(),
+  summary: z.string().trim().max(500).nullable().optional(),
   sortOrder: z.number().int().min(0).optional(),
-  status: z.nativeEnum(ItineraryItemStatus).optional(),
-  cost: z.number().nonnegative().nullable().optional(),
-  currency: z
-    .string()
-    .trim()
-    .length(3)
-    .transform((value) => value.toUpperCase())
-    .nullable()
-    .optional(),
+  startsAt: dateTimeSchema.nullable().optional(),
   durationMinutes: z.number().int().nonnegative().nullable().optional(),
-  bookingInfo: z.record(z.unknown()).nullable().optional(),
+  status: z.nativeEnum(ItineraryItemStatus).optional(),
   metadata: z.record(z.unknown()).nullable().optional(),
+  timezone: timezoneSchema.optional(),
   expectedVersion: z.number().int().positive().optional(),
   expectedRevision: revisionStringSchema,
   clientMutationId: clientMutationIdSchema,
   deviceId: deviceIdSchema
 } as const;
 
-const itineraryItemPayloadSchema = z
-  .object(itineraryItemPayloadShape)
-  .refine((value) => !value.startTime || !value.endTime || value.startTime <= value.endTime, {
-    message: 'validation.timeRange.startBeforeEnd'
-  });
+const itineraryItemPayloadSchema = z.object(itineraryItemPayloadShape);
 
 export const listItinerarySchema = z.object({
   params: z.object({
@@ -60,37 +42,20 @@ export const createTripItineraryItemSchema = z.object({
   params: z.object({
     tripId: uuidParam
   }),
-  body: z
-    .object({
-      placeId: uuidParam.nullable().optional(),
-      routeSegmentId: uuidParam.nullable().optional(),
-      type: z.nativeEnum(ItineraryItemType).default(ItineraryItemType.ACTIVITY),
-      title: z.string().trim().min(1).max(180),
-      description: z.string().trim().max(5000).optional(),
-      timezone: timezoneSchema.default(DEFAULT_TIMEZONE),
-      startTime: dateTimeSchema.optional(),
-      endTime: dateTimeSchema.optional(),
-      isFlexibleTime: z.boolean().default(true),
-      isAllDay: z.boolean().default(false),
-      sortOrder: z.number().int().min(0).optional(),
-      status: z.nativeEnum(ItineraryItemStatus).default(ItineraryItemStatus.PLANNED),
-      cost: z.number().nonnegative().optional(),
-      currency: z
-        .string()
-        .trim()
-        .length(3)
-        .transform((value) => value.toUpperCase())
-        .optional(),
-      durationMinutes: z.number().int().nonnegative().optional(),
-      bookingInfo: z.record(z.unknown()).optional(),
-      metadata: z.record(z.unknown()).optional(),
-      expectedRevision: revisionStringSchema,
-      clientMutationId: clientMutationIdSchema,
-      deviceId: deviceIdSchema
-    })
-    .refine((value) => !value.startTime || !value.endTime || value.startTime <= value.endTime, {
-      message: 'validation.timeRange.startBeforeEnd'
-    })
+  body: z.object({
+    placeId: uuidParam,
+    types: z.array(z.nativeEnum(ItineraryItemType)).min(1).default([ItineraryItemType.ACTIVITY]),
+    summary: z.string().trim().max(500).nullable().optional(),
+    sortOrder: z.number().int().min(0).optional(),
+    startsAt: dateTimeSchema.nullable().optional(),
+    durationMinutes: z.number().int().nonnegative().nullable().optional(),
+    status: z.nativeEnum(ItineraryItemStatus).default(ItineraryItemStatus.PLANNED),
+    metadata: z.record(z.unknown()).nullable().optional(),
+    timezone: timezoneSchema.default(DEFAULT_TIMEZONE),
+    expectedRevision: revisionStringSchema,
+    clientMutationId: clientMutationIdSchema,
+    deviceId: deviceIdSchema
+  })
 });
 
 export const updateItineraryItemSchema = z.object({

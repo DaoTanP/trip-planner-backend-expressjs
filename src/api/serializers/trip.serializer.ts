@@ -1,13 +1,12 @@
 import type {
   BudgetDto,
+  BudgetSummaryDto,
   ExpenseCategoryDto,
   ExpenseDto,
   ItineraryItemDto,
-  CommentDto,
   MutationEventDto,
   NoteDto,
   PlaceDto,
-  RouteSegmentDto,
   TripCollaboratorDto,
   TripDetailDto,
   TripExpensesDto,
@@ -39,46 +38,16 @@ type PlaceRecord = {
 type ItineraryItemRecord = {
   id: string;
   tripId: string;
-  placeId: string | null;
-  routeSegmentId?: string | null;
-  type: ItineraryItemDto['type'];
-  title: string;
-  description: string | null;
-  timezone: string;
-  startTime: Date | string | null;
-  endTime: Date | string | null;
-  isFlexibleTime: boolean;
-  isAllDay: boolean;
+  placeId: string;
+  types: ItineraryItemDto['types'];
+  summary: string | null;
   sortOrder: number;
-  status: ItineraryItemDto['status'];
-  cost: DecimalLike;
-  currency: string | null;
+  startsAt: Date | string | null;
   durationMinutes?: number | null;
-  bookingInfo?: unknown;
+  status: ItineraryItemDto['status'];
   metadata?: unknown;
+  timezone: string;
   version?: number;
-  createdAt: Date | string;
-  updatedAt: Date | string;
-  deletedAt?: Date | string | null;
-};
-
-type RouteSegmentRecord = {
-  id: string;
-  tripId: string | null;
-  fromPlaceId: string;
-  toPlaceId: string;
-  provider: RouteSegmentDto['provider'];
-  travelMode: string;
-  routeProfileHash: string;
-  departureTime?: Date | string | null;
-  trafficModel?: string | null;
-  alternativeIndex?: number;
-  polyline: string;
-  distanceMeters: number | null;
-  durationSeconds: number | null;
-  metadata?: unknown;
-  version?: number;
-  expiresAt?: Date | string | null;
   createdAt: Date | string;
   updatedAt: Date | string;
   deletedAt?: Date | string | null;
@@ -105,7 +74,6 @@ type NoteRecord = {
 type TripSummaryRecord = {
   id: string;
   title: string;
-  description: string | null;
   startDate: Date | string | null;
   endDate: Date | string | null;
   timezone: string;
@@ -120,7 +88,7 @@ type TripSummaryRecord = {
     collaborators?: number;
     itineraryItems?: number;
     notes?: number;
-    routeSegments?: number;
+    expenses?: number;
   };
 };
 
@@ -172,7 +140,6 @@ type ExpenseCategoryRecord = {
 type ExpenseRecord = {
   id: string;
   tripId: string;
-  budgetId: string | null;
   categoryId: string | null;
   itineraryItemId: string | null;
   title: string;
@@ -181,20 +148,7 @@ type ExpenseRecord = {
   paidByUserId: string | null;
   spentAt: Date | string | null;
   notes: string | null;
-  metadata?: unknown;
-  version?: number;
-  createdAt: Date | string;
-  updatedAt: Date | string;
-  deletedAt?: Date | string | null;
-};
-
-type CommentRecord = {
-  id: string;
-  tripId: string;
-  authorId: string;
-  targetEntityType: string;
-  targetEntityId: string;
-  body: string;
+  attachments?: unknown;
   metadata?: unknown;
   version?: number;
   createdAt: Date | string;
@@ -288,48 +242,18 @@ export const serializeItineraryItem = (item: ItineraryItemRecord): ItineraryItem
   id: item.id,
   tripId: item.tripId,
   placeId: item.placeId,
-  type: item.type,
-  title: item.title,
-  description: item.description,
-  timezone: item.timezone,
-  startTime: toIsoString(item.startTime),
-  endTime: toIsoString(item.endTime),
-  isFlexibleTime: item.isFlexibleTime,
-  isAllDay: item.isAllDay,
+  types: item.types,
+  summary: item.summary,
   sortOrder: item.sortOrder,
-  routeSegmentId: item.routeSegmentId ?? null,
-  status: item.status,
-  cost: toNumber(item.cost),
-  currency: item.currency,
+  startsAt: toIsoString(item.startsAt),
   durationMinutes: item.durationMinutes ?? null,
-  bookingInfo: toJsonRecord(item.bookingInfo),
+  status: item.status,
   metadata: toJsonRecord(item.metadata),
+  timezone: item.timezone,
   version: item.version ?? 1,
   createdAt: toIsoString(item.createdAt) ?? '',
   updatedAt: toIsoString(item.updatedAt) ?? '',
   deletedAt: toIsoString(item.deletedAt ?? null)
-});
-
-export const serializeRouteSegment = (route: RouteSegmentRecord): RouteSegmentDto => ({
-  id: route.id,
-  tripId: route.tripId,
-  fromPlaceId: route.fromPlaceId,
-  toPlaceId: route.toPlaceId,
-  provider: route.provider,
-  travelMode: route.travelMode,
-  routeProfileHash: route.routeProfileHash,
-  departureTime: toIsoString(route.departureTime ?? null),
-  trafficModel: route.trafficModel ?? null,
-  alternativeIndex: route.alternativeIndex ?? 0,
-  polyline: route.polyline,
-  distanceMeters: route.distanceMeters,
-  durationSeconds: route.durationSeconds,
-  metadata: toJsonRecord(route.metadata),
-  version: route.version ?? 1,
-  expiresAt: toIsoString(route.expiresAt ?? null),
-  createdAt: toIsoString(route.createdAt) ?? '',
-  updatedAt: toIsoString(route.updatedAt) ?? '',
-  deletedAt: toIsoString(route.deletedAt ?? null)
 });
 
 export const serializeNote = (note: NoteRecord): NoteDto => ({
@@ -353,7 +277,6 @@ export const serializeNote = (note: NoteRecord): NoteDto => ({
 export const serializeTripSummary = (trip: TripSummaryRecord): TripSummaryDto => ({
   id: trip.id,
   title: trip.title,
-  description: trip.description,
   startDate: toDateOnly(trip.startDate),
   endDate: toDateOnly(trip.endDate),
   timezone: trip.timezone,
@@ -363,7 +286,7 @@ export const serializeTripSummary = (trip: TripSummaryRecord): TripSummaryDto =>
   collaboratorCount: trip._count?.collaborators ?? 0,
   itineraryItemCount: trip._count?.itineraryItems ?? 0,
   noteCount: trip._count?.notes ?? 0,
-  routeSegmentCount: trip._count?.routeSegments ?? 0,
+  expenseCount: trip._count?.expenses ?? 0,
   version: trip.version ?? 1,
   revision: toRevisionString(trip.revision),
   createdAt: toIsoString(trip.createdAt) ?? '',
@@ -417,7 +340,6 @@ export const serializeExpenseCategory = (category: ExpenseCategoryRecord): Expen
 export const serializeExpense = (expense: ExpenseRecord): ExpenseDto => ({
   id: expense.id,
   tripId: expense.tripId,
-  budgetId: expense.budgetId,
   categoryId: expense.categoryId,
   itineraryItemId: expense.itineraryItemId,
   title: expense.title,
@@ -426,6 +348,8 @@ export const serializeExpense = (expense: ExpenseRecord): ExpenseDto => ({
   paidByUserId: expense.paidByUserId,
   spentAt: toIsoString(expense.spentAt),
   notes: expense.notes,
+  attachments:
+    expense.attachments === undefined ? null : (expense.attachments as ExpenseDto['attachments']),
   metadata: toJsonRecord(expense.metadata),
   version: expense.version ?? 1,
   createdAt: toIsoString(expense.createdAt) ?? '',
@@ -437,24 +361,12 @@ export const serializeTripExpenses = (input: {
   budget: BudgetRecord | null;
   categories: ExpenseCategoryRecord[];
   expenses: ExpenseRecord[];
+  summary: BudgetSummaryDto;
 }): TripExpensesDto => ({
   budget: input.budget ? serializeBudget(input.budget) : null,
   categories: input.categories.map(serializeExpenseCategory),
-  expenses: input.expenses.map(serializeExpense)
-});
-
-export const serializeComment = (comment: CommentRecord): CommentDto => ({
-  id: comment.id,
-  tripId: comment.tripId,
-  authorId: comment.authorId,
-  targetEntityType: comment.targetEntityType,
-  targetEntityId: comment.targetEntityId,
-  body: comment.body,
-  metadata: toJsonRecord(comment.metadata),
-  version: comment.version ?? 1,
-  createdAt: toIsoString(comment.createdAt) ?? '',
-  updatedAt: toIsoString(comment.updatedAt) ?? '',
-  deletedAt: toIsoString(comment.deletedAt ?? null)
+  expenses: input.expenses.map(serializeExpense),
+  summary: input.summary
 });
 
 export const serializeMutationEvent = (event: MutationEventRecord): MutationEventDto => ({

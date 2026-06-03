@@ -6,7 +6,6 @@ import { asyncHandler } from '@/common/utils/async-handler.js';
 import { tripsController } from '@/modules/trips/trips.controller.js';
 import {
   createTripSchema,
-  listTripExpensesSchema,
   listTripsSchema,
   tripIdSchema,
   updateTripSchema
@@ -28,9 +27,4 @@ tripsRouter.get(
   '/:tripId/collaborators',
   validateRequest(tripIdSchema),
   asyncHandler(tripsController.listCollaborators)
-);
-tripsRouter.get(
-  '/:tripId/expenses',
-  validateRequest(listTripExpensesSchema),
-  asyncHandler(tripsController.getExpenses)
 );

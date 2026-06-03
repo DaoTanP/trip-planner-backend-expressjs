@@ -566,7 +566,7 @@ const secret = env.JWT_ACCESS_SECRET;
 ## 22. Trip Editor API Conventions
 
 - Trip detail responses must stay metadata-only and be serialized through API serializers, not returned as raw Prisma graphs.
-- Itinerary items are first-class trip-scoped records. Code must use `tripId`, `placeId`, `routeSegmentId`, and `sortOrder`, not `dayId`.
+- Itinerary items are first-class trip-scoped stop records. Code must use `tripId`, required `placeId`, `types`, `summary`, `startsAt`, `durationMinutes`, `status`, and `sortOrder`, not `dayId` or route-chain fields.
 - Do not add `TripDay`, `legacyDayId`, day-target comments, or day-based route aliases. Date/day/location grouping is presentation-only unless a future ADR explicitly changes this.
 - Reorder endpoints must run in transactions.
 - Reorder APIs must be intent based: clients send `itemId`, optional `beforeItemId`, optional `afterItemId`, `expectedVersion`, and `clientMutationId`; the backend computes `sortOrder`.
@@ -580,13 +580,12 @@ const secret = env.JWT_ACCESS_SECRET;
 - Mutation event payloads must be entity patches with stable operation names (`ENTITY_CREATED`, `ENTITY_UPDATED`, `ENTITY_MOVED`, `ENTITY_DELETED`, `ENTITY_REBALANCED`), not giant trip snapshots.
 - Use `GET /trips/:tripId/mutation-events?sinceRevision=...` with `cursor`, `limit`, `latestRevision`, `hasMore`, and `nextCursor` only as a sync catch-up/debug boundary. Normal reads still come from normalized resource endpoints.
 - Keep place provider integration behind `places.service.ts` or provider adapters. Controllers must not call Google, Mapbox, or OSM directly.
-- Route geometry belongs in `RouteSegment`; do not duplicate polylines across itinerary item payloads in new code.
-- Route cache identity must include provider, from place, to place, travel mode, route profile hash, and alternate route index. Use typed columns for departure time, traffic model, expiration, and common routing fields; reserve JSONB metadata for provider-specific payloads.
+- Route data is derived on demand from ordered stops and their places. Do not persist route segments, route chains, cached polylines, or route graph repair state in the planner domain.
 - Notes are unified collaborative records with typed `targetEntityType`, `targetEntityId`, optional `parentNoteId`, author ownership, soft delete, row `version`, and mutation-event logging; do not add new `TripNote`, `ItineraryNote`, `ExpenseNote`, or `PlaceNote` tables.
-- Generic note targets must be validated through the `CollaborationEntity` registry. Do not add polymorphic Prisma relations or duplicate permission checks in each target module.
+- Generic note targets must be validated by application services against their owning records. Do not add polymorphic Prisma relations or restore a collaboration registry table.
 - Use `/notes` with `tripId`, `targetEntityType`, `targetEntityId`, `parentNoteId`, cursor, and limit filters. Do not add new entity-specific note endpoints.
-- Comments must use generic `targetEntityType` and `targetEntityId`, not feature-specific nullable target columns.
-- Cursor pagination is required for itinerary items, notes, comments, route segments, and expenses.
+- Threaded planning context must use `Note` with generic `targetEntityType`, `targetEntityId`, and optional `parentNoteId`; do not restore a separate comment module.
+- Cursor pagination is required for itinerary items, notes, and expenses.
 - Do not reintroduce `Destination` for itinerary activity locations; use normalized `Place` records and flat itinerary items.
 - Budget data belongs in normalized `Budget`, `Expense`, and `ExpenseCategory` entities; do not add new trip-level budget JSON.
 - Planner workspace summaries should remain frontend-derived unless there is a clear cross-client or expensive-query reason to add a normalized endpoint.

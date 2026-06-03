@@ -61,8 +61,7 @@ export class ItineraryService {
     return this.repository.createItineraryItem(await this.toCreateData(tripId, input), {
       actorId: userId,
       deviceId: input.deviceId,
-      clientMutationId: input.clientMutationId,
-      operation: 'ENTITY_CREATED'
+      clientMutationId: input.clientMutationId
     });
   }
 
@@ -106,29 +105,17 @@ export class ItineraryService {
     };
 
     if (input.placeId !== undefined) {
-      data.place = input.placeId ? { connect: { id: input.placeId } } : { disconnect: true };
+      data.place = { connect: { id: input.placeId } };
     }
-    if (input.routeSegmentId !== undefined) {
-      data.routeSegment = input.routeSegmentId
-        ? { connect: { id: input.routeSegmentId } }
-        : { disconnect: true };
-    }
-    if (input.type !== undefined) data.type = input.type;
-    if (input.title !== undefined) data.title = input.title;
-    if (input.description !== undefined) data.description = input.description;
-    if (input.timezone !== undefined) data.timezone = input.timezone;
-    if (input.startTime !== undefined)
-      data.startTime = input.startTime ? new Date(input.startTime) : null;
-    if (input.endTime !== undefined) data.endTime = input.endTime ? new Date(input.endTime) : null;
-    if (input.isFlexibleTime !== undefined) data.isFlexibleTime = input.isFlexibleTime;
-    if (input.isAllDay !== undefined) data.isAllDay = input.isAllDay;
+    if (input.types !== undefined) data.types = input.types;
+    if (input.summary !== undefined) data.summary = input.summary;
     if (input.sortOrder !== undefined) data.sortOrder = input.sortOrder;
-    if (input.status !== undefined) data.status = input.status;
-    if (input.cost !== undefined) data.cost = input.cost;
-    if (input.currency !== undefined) data.currency = input.currency;
+    if (input.startsAt !== undefined)
+      data.startsAt = input.startsAt ? new Date(input.startsAt) : null;
     if (input.durationMinutes !== undefined) data.durationMinutes = input.durationMinutes;
-    if (input.bookingInfo !== undefined) data.bookingInfo = input.bookingInfo;
+    if (input.status !== undefined) data.status = input.status;
     if (input.metadata !== undefined) data.metadata = input.metadata;
+    if (input.timezone !== undefined) data.timezone = input.timezone;
 
     if (input.clientMutationId !== undefined) {
       data.lastClientMutationId = input.clientMutationId;
@@ -138,8 +125,7 @@ export class ItineraryService {
       tripId: access.tripId,
       actorId: userId,
       deviceId: input.deviceId,
-      clientMutationId: input.clientMutationId,
-      operation: 'ENTITY_UPDATED'
+      clientMutationId: input.clientMutationId
     });
   }
 
@@ -176,8 +162,7 @@ export class ItineraryService {
       tripId: access.tripId,
       actorId: userId,
       deviceId: query.deviceId,
-      clientMutationId: query.clientMutationId,
-      operation: 'ENTITY_DELETED'
+      clientMutationId: query.clientMutationId
     });
   }
 
@@ -242,25 +227,17 @@ export class ItineraryService {
 
     const data: Prisma.ItineraryItemUncheckedCreateInput = {
       tripId,
-      title: input.title,
-      type: input.type,
-      timezone: input.timezone,
-      status: input.status,
-      isFlexibleTime: input.isFlexibleTime,
-      isAllDay: input.isAllDay,
+      placeId: input.placeId,
+      types: input.types,
       sortOrder
     };
 
-    if (input.placeId !== undefined) data.placeId = input.placeId;
-    if (input.routeSegmentId !== undefined) data.routeSegmentId = input.routeSegmentId;
-    if (input.description !== undefined) data.description = input.description;
-    if (input.startTime) data.startTime = new Date(input.startTime);
-    if (input.endTime) data.endTime = new Date(input.endTime);
-    if (input.cost !== undefined) data.cost = input.cost;
-    if (input.currency !== undefined) data.currency = input.currency;
+    if (input.summary !== undefined) data.summary = input.summary;
+    if (input.startsAt) data.startsAt = new Date(input.startsAt);
     if (input.durationMinutes !== undefined) data.durationMinutes = input.durationMinutes;
-    if (input.bookingInfo !== undefined) data.bookingInfo = input.bookingInfo;
+    if (input.status !== undefined) data.status = input.status;
     if (input.metadata !== undefined) data.metadata = input.metadata;
+    if (input.timezone !== undefined) data.timezone = input.timezone;
     if (input.clientMutationId !== undefined) data.lastClientMutationId = input.clientMutationId;
 
     return data;

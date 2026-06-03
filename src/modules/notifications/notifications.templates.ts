@@ -6,7 +6,7 @@ import { formatDateTimeForLocale } from '@/common/utils/date.js';
 
 export const notificationCodes = [
   'TRIP_INVITE',
-  'COMMENT_MENTION',
+  'NOTE_MENTION',
   'ITINERARY_UPDATE',
   'SYSTEM'
 ] as const;
@@ -57,12 +57,12 @@ const notificationTemplates = {
     emailTextKey: 'emails.TRIP_INVITE.text',
     emailHtmlKey: 'emails.TRIP_INVITE.html'
   },
-  COMMENT_MENTION: {
-    titleKey: 'notifications.COMMENT_MENTION.title',
-    bodyKey: 'notifications.COMMENT_MENTION.body',
-    emailSubjectKey: 'emails.COMMENT_MENTION.subject',
-    emailTextKey: 'emails.COMMENT_MENTION.text',
-    emailHtmlKey: 'emails.COMMENT_MENTION.html'
+  NOTE_MENTION: {
+    titleKey: 'notifications.NOTE_MENTION.title',
+    bodyKey: 'notifications.NOTE_MENTION.body',
+    emailSubjectKey: 'emails.NOTE_MENTION.subject',
+    emailTextKey: 'emails.NOTE_MENTION.text',
+    emailHtmlKey: 'emails.NOTE_MENTION.html'
   },
   ITINERARY_UPDATE: {
     titleKey: 'notifications.ITINERARY_UPDATE.title',

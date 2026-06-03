@@ -138,28 +138,19 @@ export type TripStatusDto = 'DRAFT' | 'PLANNED' | 'ACTIVE' | 'COMPLETED' | 'ARCH
 export type TripVisibilityDto = 'PRIVATE' | 'SHARED' | 'PUBLIC';
 export type PlaceProviderDto = 'MANUAL' | 'GOOGLE' | 'MAPBOX' | 'OSM' | 'INTERNAL';
 export type PlaceSourceDto = PlaceProviderDto;
-export type RouteProviderDto = 'GOOGLE' | 'MAPBOX' | 'OSM' | 'INTERNAL';
-export type NoteTargetEntityTypeDto =
-  | 'TRIP'
-  | 'ITINERARY_ITEM'
-  | 'EXPENSE'
-  | 'PLACE'
-  | 'ROUTE_SEGMENT';
+export type NoteTargetEntityTypeDto = 'TRIP' | 'ITINERARY_ITEM' | 'EXPENSE' | 'PLACE';
 export type ItineraryItemTypeDto =
   | 'ACTIVITY'
-  | 'PLACE'
   | 'LODGING'
-  | 'TRANSPORT'
   | 'FOOD'
-  | 'NOTE'
-  | 'TASK'
-  | 'CUSTOM';
+  | 'SHOPPING'
+  | 'TRANSPORTATION'
+  | 'OTHER';
 export type ItineraryItemStatusDto = 'PLANNED' | 'BOOKED' | 'COMPLETED' | 'CANCELLED';
 
 export type TripSummaryDto = {
   id: string;
   title: string;
-  description: string | null;
   startDate: string | null;
   endDate: string | null;
   timezone: string;
@@ -169,7 +160,7 @@ export type TripSummaryDto = {
   collaboratorCount: number;
   itineraryItemCount: number;
   noteCount: number;
-  routeSegmentCount: number;
+  expenseCount: number;
   version: number;
   revision: string;
   createdAt: string;
@@ -234,46 +225,16 @@ export type PlaceDto = {
 export type ItineraryItemDto = {
   id: string;
   tripId: string;
-  placeId: string | null;
-  type: ItineraryItemTypeDto;
-  title: string;
-  description: string | null;
-  timezone: string;
-  startTime: string | null;
-  endTime: string | null;
-  isFlexibleTime: boolean;
-  isAllDay: boolean;
+  placeId: string;
+  types: ItineraryItemTypeDto[];
+  summary: string | null;
   sortOrder: number;
-  routeSegmentId: string | null;
-  status: ItineraryItemStatusDto;
-  cost: number | null;
-  currency: string | null;
+  startsAt: string | null;
   durationMinutes: number | null;
-  bookingInfo: Record<string, unknown> | null;
+  status: ItineraryItemStatusDto;
   metadata: Record<string, unknown> | null;
+  timezone: string;
   version: number;
-  createdAt: string;
-  updatedAt: string;
-  deletedAt: string | null;
-};
-
-export type RouteSegmentDto = {
-  id: string;
-  tripId: string | null;
-  fromPlaceId: string;
-  toPlaceId: string;
-  provider: RouteProviderDto;
-  travelMode: string;
-  routeProfileHash: string;
-  departureTime: string | null;
-  trafficModel: string | null;
-  alternativeIndex: number;
-  polyline: string;
-  distanceMeters: number | null;
-  durationSeconds: number | null;
-  metadata: Record<string, unknown> | null;
-  version: number;
-  expiresAt: string | null;
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
@@ -313,6 +274,15 @@ export type BudgetDto = {
   updatedAt: string;
 };
 
+export type BudgetSummaryDto = {
+  budget: BudgetDto | null;
+  currency: string;
+  budgetLimit: number | null;
+  spentAmount: number;
+  remainingAmount: number | null;
+  usagePercentage: number | null;
+};
+
 export type ExpenseCategoryDto = {
   id: string;
   tripId: string;
@@ -329,7 +299,6 @@ export type ExpenseCategoryDto = {
 export type ExpenseDto = {
   id: string;
   tripId: string;
-  budgetId: string | null;
   categoryId: string | null;
   itineraryItemId: string | null;
   title: string;
@@ -338,6 +307,7 @@ export type ExpenseDto = {
   paidByUserId: string | null;
   spentAt: string | null;
   notes: string | null;
+  attachments: Record<string, unknown>[] | null;
   metadata: Record<string, unknown> | null;
   version: number;
   createdAt: string;
@@ -349,20 +319,7 @@ export type TripExpensesDto = {
   budget: BudgetDto | null;
   categories: ExpenseCategoryDto[];
   expenses: ExpenseDto[];
-};
-
-export type CommentDto = {
-  id: string;
-  tripId: string;
-  authorId: string;
-  targetEntityType: string;
-  targetEntityId: string;
-  body: string;
-  metadata: Record<string, unknown> | null;
-  version: number;
-  createdAt: string;
-  updatedAt: string;
-  deletedAt: string | null;
+  summary: BudgetSummaryDto;
 };
 
 export type MutationEventDto = {
@@ -394,7 +351,6 @@ export type ListTripsQueryDto = {
 
 export type CreateTripRequestDto = {
   title: string;
-  description?: string;
   startDate?: string;
   endDate?: string;
   timezone?: string;
@@ -403,8 +359,7 @@ export type CreateTripRequestDto = {
 };
 
 export type UpdateTripRequestDto = Partial<
-  Omit<CreateTripRequestDto, 'description' | 'startDate' | 'endDate' | 'preferences'> & {
-    description: string | null;
+  Omit<CreateTripRequestDto, 'startDate' | 'endDate' | 'preferences'> & {
     startDate: string | null;
     endDate: string | null;
     status: TripStatusDto;
@@ -418,46 +373,30 @@ export type UpdateTripRequestDto = Partial<
 >;
 
 export type CreateItineraryItemRequestDto = {
-  placeId?: string | null;
-  type?: ItineraryItemTypeDto;
-  title: string;
-  description?: string;
-  timezone?: string;
-  startTime?: string;
-  endTime?: string;
-  isFlexibleTime?: boolean;
-  isAllDay?: boolean;
+  placeId: string;
+  types?: ItineraryItemTypeDto[];
+  summary?: string | null;
   sortOrder?: number;
-  routeSegmentId?: string | null;
+  startsAt?: string | null;
+  durationMinutes?: number | null;
   status?: ItineraryItemStatusDto;
-  cost?: number;
-  currency?: string;
-  durationMinutes?: number;
-  bookingInfo?: Record<string, unknown>;
-  metadata?: Record<string, unknown>;
+  metadata?: Record<string, unknown> | null;
+  timezone?: string;
   expectedRevision?: string;
   clientMutationId?: string;
   deviceId?: string;
 };
 
 export type UpdateItineraryItemRequestDto = Partial<{
-  placeId: string | null;
-  type: ItineraryItemTypeDto;
-  title: string;
-  description: string | null;
-  timezone: string;
-  startTime: string | null;
-  endTime: string | null;
-  isFlexibleTime: boolean;
-  isAllDay: boolean;
+  placeId: string;
+  types: ItineraryItemTypeDto[];
+  summary: string | null;
   sortOrder: number;
-  routeSegmentId: string | null;
-  status: ItineraryItemStatusDto;
-  cost: number | null;
-  currency: string | null;
+  startsAt: string | null;
   durationMinutes: number | null;
-  bookingInfo: Record<string, unknown> | null;
+  status: ItineraryItemStatusDto;
   metadata: Record<string, unknown> | null;
+  timezone: string;
   expectedVersion: number;
   expectedRevision: string;
   clientMutationId: string;
@@ -555,14 +494,63 @@ export type ListNotesQueryDto = CursorListQueryDto & {
   parentNoteId?: string;
 };
 
-export type ListCommentsQueryDto = CursorListQueryDto & {
-  targetEntityType?: string;
-  targetEntityId?: string;
-};
-
 export type SearchPlacesQueryDto = ListPlacesQueryDto & {
   lat?: number;
   lng?: number;
+};
+
+export type ListExpensesQueryDto = CursorListQueryDto & {
+  categoryId?: string;
+  itineraryItemId?: string;
+  paidByUserId?: string;
+};
+
+export type CreateExpenseRequestDto = {
+  categoryId?: string | null;
+  itineraryItemId?: string | null;
+  title: string;
+  amount: number;
+  currency: string;
+  paidByUserId?: string | null;
+  spentAt?: string | null;
+  notes?: string | null;
+  attachments?: Record<string, unknown>[] | null;
+  metadata?: Record<string, unknown> | null;
+  expectedRevision?: string;
+  clientMutationId?: string;
+  deviceId?: string;
+};
+
+export type UpdateExpenseRequestDto = Partial<{
+  categoryId: string | null;
+  itineraryItemId: string | null;
+  title: string;
+  amount: number;
+  currency: string;
+  paidByUserId: string | null;
+  spentAt: string | null;
+  notes: string | null;
+  attachments: Record<string, unknown>[] | null;
+  metadata: Record<string, unknown> | null;
+  expectedVersion: number;
+  expectedRevision: string;
+  clientMutationId: string;
+  deviceId: string;
+}>;
+
+export type DeleteExpenseQueryDto = {
+  expectedRevision?: string;
+  clientMutationId?: string;
+  deviceId?: string;
+};
+
+export type UpsertBudgetRequestDto = {
+  currency?: string;
+  totalLimit?: number | null;
+  metadata?: Record<string, unknown> | null;
+  expectedRevision?: string;
+  clientMutationId?: string;
+  deviceId?: string;
 };
 
 export type CreatePlaceRequestDto = {
@@ -714,15 +702,6 @@ export type ApiV1Paths = {
       response: ApiSuccessResponse<{ note: NoteDto; revision: string; clientMutationId?: string }>;
     };
   };
-  '/trips/{tripId}/routes': {
-    get: {
-      query: CursorListQueryDto;
-      response: ApiSuccessResponse<
-        { routes: RouteSegmentDto[] },
-        { pagination: CursorPaginationMeta }
-      >;
-    };
-  };
   '/trips/{tripId}/collaborators': {
     get: {
       response: ApiSuccessResponse<{ collaborators: TripCollaboratorDto[] }>;
@@ -730,17 +709,39 @@ export type ApiV1Paths = {
   };
   '/trips/{tripId}/expenses': {
     get: {
-      query: CursorListQueryDto;
+      query: ListExpensesQueryDto;
       response: ApiSuccessResponse<TripExpensesDto, { pagination: CursorPaginationMeta }>;
     };
+    post: {
+      request: CreateExpenseRequestDto;
+      response: ApiSuccessResponse<{
+        expense: ExpenseDto;
+        revision: string;
+        clientMutationId?: string;
+      }>;
+    };
   };
-  '/trips/{tripId}/comments': {
+  '/expenses/{expenseId}': {
+    patch: {
+      request: UpdateExpenseRequestDto;
+      response: ApiSuccessResponse<{
+        expense: ExpenseDto;
+        revision: string;
+        clientMutationId?: string;
+      }>;
+    };
+    delete: {
+      query: DeleteExpenseQueryDto;
+      response: void;
+    };
+  };
+  '/trips/{tripId}/budget': {
     get: {
-      query: ListCommentsQueryDto;
-      response: ApiSuccessResponse<
-        { comments: CommentDto[] },
-        { pagination: CursorPaginationMeta }
-      >;
+      response: ApiSuccessResponse<BudgetSummaryDto>;
+    };
+    put: {
+      request: UpsertBudgetRequestDto;
+      response: ApiSuccessResponse<BudgetSummaryDto & MutationResponseMetaDto>;
     };
   };
   '/trips/{tripId}/mutation-events': {

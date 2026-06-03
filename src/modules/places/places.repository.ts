@@ -1,6 +1,5 @@
 import type { Place, Prisma } from '@prisma/client';
 
-import { registerCollaborationEntity } from '@/modules/collaboration/collaboration-entity-registry.js';
 import { prisma } from '@/prisma/client.js';
 
 export class PlacesRepository {
@@ -23,16 +22,8 @@ export class PlacesRepository {
   }
 
   create(data: Prisma.PlaceCreateInput): Promise<Place> {
-    return prisma.$transaction(async (tx) => {
-      const place = await tx.place.create({
-        data
-      });
-      await registerCollaborationEntity(tx, {
-        entityType: 'PLACE',
-        entityId: place.id
-      });
-
-      return place;
+    return prisma.place.create({
+      data
     });
   }
 

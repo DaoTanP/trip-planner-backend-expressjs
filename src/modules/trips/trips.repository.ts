@@ -1,12 +1,5 @@
-import type { Budget, Expense, ExpenseCategory, Prisma, Trip } from '@prisma/client';
+import type { Prisma, Trip } from '@prisma/client';
 
-import {
-  buildCursorPage,
-  decodeCursor,
-  encodeCursor,
-  type CursorPage
-} from '@/common/utils/cursor-pagination.js';
-import { registerCollaborationEntity } from '@/modules/collaboration/collaboration-entity-registry.js';
 import {
   appendMutationEvent,
   createEntityPatchPayload,
@@ -19,35 +12,6 @@ export type TripListFilters = {
   page: number;
   limit: number;
 };
-
-type CreatedAtCursor = {
-  createdAt: string;
-  id: string;
-};
-
-const createdAtCursorWhere = (cursor: CreatedAtCursor | null): Prisma.ExpenseWhereInput =>
-  cursor
-    ? {
-        OR: [
-          { createdAt: { gt: new Date(cursor.createdAt) } },
-          {
-            createdAt: new Date(cursor.createdAt),
-            id: { gt: cursor.id }
-          }
-        ]
-      }
-    : {};
-
-const expenseOrderBy = [
-  { createdAt: 'asc' },
-  { id: 'asc' }
-] satisfies Prisma.ExpenseOrderByWithRelationInput[];
-
-const expenseCursor = (expense: Expense): string =>
-  encodeCursor({
-    createdAt: expense.createdAt.toISOString(),
-    id: expense.id
-  });
 
 export class TripsRepository {
   async findForUser(userId: string, filters: TripListFilters) {
@@ -91,7 +55,7 @@ export class TripsRepository {
                   deletedAt: null
                 }
               },
-              routeSegments: {
+              expenses: {
                 where: {
                   deletedAt: null
                 }
@@ -110,11 +74,6 @@ export class TripsRepository {
     return prisma.$transaction(async (tx) => {
       const trip = await tx.trip.create({
         data
-      });
-      await registerCollaborationEntity(tx, {
-        entityType: 'TRIP',
-        entityId: trip.id,
-        tripId: trip.id
       });
       await appendMutationEvent(tx, {
         tripId: trip.id,
@@ -183,7 +142,7 @@ export class TripsRepository {
                 deletedAt: null
               }
             },
-            routeSegments: {
+            expenses: {
               where: {
                 deletedAt: null
               }
@@ -276,7 +235,6 @@ export class TripsRepository {
           fields: {
             id,
             title: trip.title,
-            description: trip.description,
             startDate: trip.startDate?.toISOString().slice(0, 10) ?? null,
             endDate: trip.endDate?.toISOString().slice(0, 10) ?? null,
             timezone: trip.timezone,
@@ -310,43 +268,6 @@ export class TripsRepository {
         }
       },
       orderBy: [{ role: 'asc' }, { createdAt: 'asc' }]
-    });
-  }
-
-  getExpenses(
-    tripId: string,
-    filters: { cursor?: string | undefined; limit: number }
-  ): Promise<{
-    budget: Budget | null;
-    categories: ExpenseCategory[];
-    expenses: CursorPage<Expense>;
-  }> {
-    return prisma.$transaction(async (tx) => {
-      const cursor = decodeCursor<CreatedAtCursor>(filters.cursor);
-      const [budget, categories, expenses] = await Promise.all([
-        tx.budget.findUnique({
-          where: { tripId }
-        }),
-        tx.expenseCategory.findMany({
-          where: { tripId, deletedAt: null },
-          orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }]
-        }),
-        tx.expense.findMany({
-          where: {
-            tripId,
-            deletedAt: null,
-            ...createdAtCursorWhere(cursor)
-          },
-          orderBy: expenseOrderBy,
-          take: filters.limit + 1
-        })
-      ]);
-
-      return {
-        budget,
-        categories,
-        expenses: buildCursorPage(expenses, filters.limit, expenseCursor)
-      };
     });
   }
 

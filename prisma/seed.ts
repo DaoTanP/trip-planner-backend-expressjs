@@ -45,7 +45,6 @@ async function main() {
       id: '00000000-0000-0000-0000-000000000001',
       ownerId: user.id,
       title: 'Northern Vietnam Discovery',
-      description: 'A starter trip used for local development and onboarding.',
       startDate: new Date('2026-06-01'),
       endDate: new Date('2026-06-07'),
       timezone: 'Asia/Bangkok',
@@ -55,8 +54,8 @@ async function main() {
         create: [
           {
             placeId: oldQuarter.id,
-            type: 'PLACE',
-            title: 'Old Quarter walk',
+            types: ['ACTIVITY'],
+            summary: 'Old Quarter walk',
             timezone: 'Asia/Bangkok',
             sortOrder: 1024
           }

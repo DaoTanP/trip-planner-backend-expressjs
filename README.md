@@ -35,7 +35,11 @@ src/
     trips/
     itinerary/
     places/
+    notes/
+    expenses/
+    budget/
     notifications/
+    sync/
   jobs/
   workers/
 prisma/
@@ -88,7 +92,7 @@ Mailpit UI: `http://localhost:8025`
 
 ## Prisma Setup
 
-The schema models users, OAuth accounts, refresh tokens, trips, collaborators, destinations, itinerary days, activities, places, comments, and notifications.
+The schema models users, OAuth accounts, refresh tokens, trips, collaborators, stop-first itinerary items, reusable places, threaded notes, expenses, budget configuration, notifications, and revision-based sync records.
 
 PostgreSQL extensions enabled in the initial migration:
 
@@ -96,7 +100,7 @@ PostgreSQL extensions enabled in the initial migration:
 - `pgcrypto` for database UUID generation
 - `postgis` so geospatial support can be added later without changing infrastructure
 
-Use relational modeling for ownership and collaboration. Use JSONB for flexible data such as preferences, booking info, metadata, source payloads, and future AI/recommendation context.
+Use relational modeling for ownership and collaboration. Use JSONB for flexible data such as preferences, metadata, provider source payloads, note attachments/mentions, expense attachments, and future AI/recommendation context.
 
 ## REST API Surface
 
@@ -115,13 +119,24 @@ Implemented route groups:
 - `GET /trips/:tripId`
 - `PATCH /trips/:tripId`
 - `DELETE /trips/:tripId`
-- `GET /itinerary/trips/:tripId/days`
-- `POST /itinerary/trips/:tripId/days`
-- `POST /itinerary/days/:dayId/activities`
-- `PATCH /itinerary/activities/:activityId`
-- `DELETE /itinerary/activities/:activityId`
+- `GET /trips/:tripId/itinerary`
+- `POST /trips/:tripId/itinerary`
+- `PATCH /trips/:tripId/itinerary/reorder`
+- `PATCH /itinerary/:itemId`
+- `DELETE /itinerary/:itemId`
 - `GET /places`
 - `POST /places`
+- `GET /notes`
+- `POST /notes`
+- `PATCH /notes/:noteId`
+- `DELETE /notes/:noteId`
+- `GET /trips/:tripId/expenses`
+- `POST /trips/:tripId/expenses`
+- `PATCH /expenses/:expenseId`
+- `DELETE /expenses/:expenseId`
+- `GET /trips/:tripId/budget`
+- `PUT /trips/:tripId/budget`
+- `GET /trips/:tripId/mutation-events`
 - `GET /notifications`
 - `PATCH /notifications/:notificationId/read`
 

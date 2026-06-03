@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-The planner is moving toward large collaborative trips, optimistic updates, future websocket fanout, and future offline/mobile sync. Phase 1 normalized trip editor data into flat itinerary items, generic notes, route segments, and granular resources, but clients still lacked a monotonic trip-level clock for catch-up and conflict detection.
+The planner is moving toward large collaborative trips, optimistic updates, future websocket fanout, and future offline/mobile sync. The stop-first domain normalizes trip editor data into flat itinerary stops, reusable places, threaded notes, expenses, budget configuration, and granular resources, but clients still need a monotonic trip-level clock for catch-up and conflict detection.
 
 ## Decision
 

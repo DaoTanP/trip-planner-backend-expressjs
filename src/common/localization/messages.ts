@@ -1,10 +1,10 @@
 import type { Locale } from '@/common/localization/locales.js';
 
 const enMessages = {
-  'emails.COMMENT_MENTION.html':
-    '<p>{actorName} mentioned you in {tripTitle}.</p><p>{commentPreview}</p>',
-  'emails.COMMENT_MENTION.subject': '{actorName} mentioned you',
-  'emails.COMMENT_MENTION.text': '{actorName} mentioned you in {tripTitle}. {commentPreview}',
+  'emails.NOTE_MENTION.html':
+    '<p>{actorName} mentioned you in {tripTitle}.</p><p>{notePreview}</p>',
+  'emails.NOTE_MENTION.subject': '{actorName} mentioned you',
+  'emails.NOTE_MENTION.text': '{actorName} mentioned you in {tripTitle}. {notePreview}',
   'emails.ITINERARY_UPDATE.html': '<p>{tripTitle} was updated.</p><p>{summary}</p>',
   'emails.ITINERARY_UPDATE.subject': '{tripTitle} itinerary updated',
   'emails.ITINERARY_UPDATE.text': '{tripTitle} was updated. {summary}',
@@ -45,8 +45,8 @@ const enMessages = {
   'errors.validation.generic': 'Validation failed',
   'errors.validation.request': 'Request validation failed',
 
-  'notifications.COMMENT_MENTION.body': '{actorName} mentioned you: {commentPreview}',
-  'notifications.COMMENT_MENTION.title': 'You were mentioned',
+  'notifications.NOTE_MENTION.body': '{actorName} mentioned you: {notePreview}',
+  'notifications.NOTE_MENTION.title': 'You were mentioned',
   'notifications.ITINERARY_UPDATE.body': '{summary}',
   'notifications.ITINERARY_UPDATE.title': '{tripTitle} was updated',
   'notifications.SYSTEM.body': '{message}',
@@ -55,6 +55,8 @@ const enMessages = {
   'notifications.TRIP_INVITE.title': 'Trip invite',
 
   'resources.activity': 'Activity',
+  'resources.budget': 'Budget',
+  'resources.expense': 'Expense',
   'resources.itineraryItem': 'Itinerary item',
   'resources.notification': 'Notification',
   'resources.place': 'Place',
@@ -84,7 +86,6 @@ const enMessages = {
   'validation.password.uppercase': 'Password must include at least one uppercase letter',
   'validation.regex': 'Invalid format',
   'validation.required': 'Required',
-  'validation.timeRange.startBeforeEnd': 'startTime must be before or equal to endTime',
   'validation.timezone.invalid': 'Expected a valid IANA timezone',
   'validation.tooBig.array': 'Must contain at most {maximum} items',
   'validation.tooBig.date': 'Must be before {maximum}',
@@ -101,10 +102,9 @@ export type MessageKey = keyof typeof enMessages;
 export type ResourceMessageKey = Extract<MessageKey, `resources.${string}`>;
 
 const _legacyEsMessages: Partial<Record<MessageKey, string>> = {
-  'emails.COMMENT_MENTION.html':
-    '<p>{actorName} te menciono en {tripTitle}.</p><p>{commentPreview}</p>',
-  'emails.COMMENT_MENTION.subject': '{actorName} te menciono',
-  'emails.COMMENT_MENTION.text': '{actorName} te menciono en {tripTitle}. {commentPreview}',
+  'emails.NOTE_MENTION.html': '<p>{actorName} te menciono en {tripTitle}.</p><p>{notePreview}</p>',
+  'emails.NOTE_MENTION.subject': '{actorName} te menciono',
+  'emails.NOTE_MENTION.text': '{actorName} te menciono en {tripTitle}. {notePreview}',
   'emails.ITINERARY_UPDATE.html': '<p>{tripTitle} fue actualizado.</p><p>{summary}</p>',
   'emails.ITINERARY_UPDATE.subject': 'Itinerario actualizado: {tripTitle}',
   'emails.ITINERARY_UPDATE.text': '{tripTitle} fue actualizado. {summary}',
@@ -139,8 +139,8 @@ const _legacyEsMessages: Partial<Record<MessageKey, string>> = {
   'errors.validation.generic': 'La validacion fallo',
   'errors.validation.request': 'La solicitud no paso la validacion',
 
-  'notifications.COMMENT_MENTION.body': '{actorName} te menciono: {commentPreview}',
-  'notifications.COMMENT_MENTION.title': 'Te mencionaron',
+  'notifications.NOTE_MENTION.body': '{actorName} te menciono: {notePreview}',
+  'notifications.NOTE_MENTION.title': 'Te mencionaron',
   'notifications.ITINERARY_UPDATE.body': '{summary}',
   'notifications.ITINERARY_UPDATE.title': '{tripTitle} fue actualizado',
   'notifications.SYSTEM.body': '{message}',
@@ -149,6 +149,8 @@ const _legacyEsMessages: Partial<Record<MessageKey, string>> = {
   'notifications.TRIP_INVITE.title': 'Invitacion de viaje',
 
   'resources.activity': 'Actividad',
+  'resources.budget': 'Presupuesto',
+  'resources.expense': 'Gasto',
   'resources.itineraryItem': 'Elemento de itinerario',
   'resources.notification': 'Notificacion',
   'resources.place': 'Lugar',
@@ -178,7 +180,6 @@ const _legacyEsMessages: Partial<Record<MessageKey, string>> = {
   'validation.password.uppercase': 'La contrasena debe incluir al menos una letra mayuscula',
   'validation.regex': 'Formato invalido',
   'validation.required': 'Requerido',
-  'validation.timeRange.startBeforeEnd': 'startTime debe ser anterior o igual a endTime',
   'validation.timezone.invalid': 'Se esperaba una zona horaria IANA valida',
   'validation.tooBig.array': 'Debe contener como maximo {maximum} elementos',
   'validation.tooBig.date': 'Debe ser anterior a {maximum}',

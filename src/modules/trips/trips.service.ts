@@ -3,12 +3,10 @@ import type { Prisma, TripRole, UserRole } from '@prisma/client';
 import { AuthorizationError } from '@/common/errors/authorization-error.js';
 import { NotFoundError } from '@/common/errors/not-found-error.js';
 import { RevisionConflictError } from '@/common/errors/revision-conflict-error.js';
-import { normalizeCursorLimit } from '@/common/utils/cursor-pagination.js';
 import { parseDateOnly } from '@/common/utils/date.js';
 import { findIdempotentMutation } from '@/modules/sync/idempotency.js';
 import type {
   CreateTripInput,
-  ListTripExpensesQuery,
   ListTripsQuery,
   UpdateTripInput
 } from '@/modules/trips/trips.schemas.js';
@@ -60,7 +58,6 @@ export class TripsService {
       visibility: input.visibility
     };
 
-    if (input.description !== undefined) data.description = input.description;
     if (input.startDate) data.startDate = parseDateOnly(input.startDate);
     if (input.endDate) data.endDate = parseDateOnly(input.endDate);
     if (input.preferences !== undefined) data.preferences = input.preferences;
@@ -96,7 +93,6 @@ export class TripsService {
 
     const data: Prisma.TripUpdateInput = {};
     if (input.title !== undefined) data.title = input.title;
-    if (input.description !== undefined) data.description = input.description;
     if (input.startDate !== undefined)
       data.startDate = input.startDate ? parseDateOnly(input.startDate) : null;
     if (input.endDate !== undefined)
@@ -139,15 +135,6 @@ export class TripsService {
     await this.ensureCanAccessTrip(userId, tripId);
 
     return this.repository.listCollaborators(tripId);
-  }
-
-  async getExpenses(userId: string, tripId: string, query: ListTripExpensesQuery) {
-    await this.ensureCanAccessTrip(userId, tripId);
-
-    return this.repository.getExpenses(tripId, {
-      cursor: query.cursor,
-      limit: normalizeCursorLimit(query.limit)
-    });
   }
 
   async getAccessContext(

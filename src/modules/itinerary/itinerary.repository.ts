@@ -12,7 +12,6 @@ import {
   itineraryOrderStride,
   spacedItineraryOrder
 } from '@/modules/itinerary/itinerary-ordering.js';
-import { registerCollaborationEntity } from '@/modules/collaboration/collaboration-entity-registry.js';
 import {
   appendMutationEvent,
   createEntityPatchPayload,
@@ -29,7 +28,6 @@ type ItineraryMutationInput = {
   actorId: string;
   deviceId?: string | undefined;
   clientMutationId?: string | undefined;
-  operation: string;
 };
 
 type ReorderInput = {
@@ -76,22 +74,14 @@ const itineraryItemPatchFields = (item: ItineraryItem): Prisma.InputJsonObject =
   id: item.id,
   tripId: item.tripId,
   placeId: item.placeId,
-  routeSegmentId: item.routeSegmentId,
-  type: item.type,
-  title: item.title,
-  description: item.description,
-  timezone: item.timezone,
-  startTime: item.startTime?.toISOString() ?? null,
-  endTime: item.endTime?.toISOString() ?? null,
-  isFlexibleTime: item.isFlexibleTime,
-  isAllDay: item.isAllDay,
+  types: item.types,
+  summary: item.summary,
   sortOrder: item.sortOrder,
-  status: item.status,
-  cost: item.cost === null ? null : Number(item.cost),
-  currency: item.currency,
+  startsAt: item.startsAt?.toISOString() ?? null,
   durationMinutes: item.durationMinutes,
-  bookingInfo: item.bookingInfo as Prisma.InputJsonValue | null,
+  status: item.status,
   metadata: item.metadata as Prisma.InputJsonValue | null,
+  timezone: item.timezone,
   version: item.version,
   createdAt: item.createdAt.toISOString(),
   updatedAt: item.updatedAt.toISOString(),
@@ -150,11 +140,6 @@ export class ItineraryRepository {
     return prisma.$transaction(async (tx) => {
       const item = await tx.itineraryItem.create({
         data
-      });
-      await registerCollaborationEntity(tx, {
-        entityType: 'ITINERARY_ITEM',
-        entityId: item.id,
-        tripId: item.tripId
       });
       const revision = await appendMutationEvent(tx, {
         ...mutation,

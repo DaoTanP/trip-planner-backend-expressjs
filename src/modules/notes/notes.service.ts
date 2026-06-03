@@ -1,13 +1,10 @@
 import type { Prisma } from '@prisma/client';
 
+import { AuthorizationError } from '@/common/errors/authorization-error.js';
 import { ConflictError } from '@/common/errors/conflict-error.js';
 import { NotFoundError } from '@/common/errors/not-found-error.js';
 import type { AuthenticatedUser } from '@/common/types/authenticated-user.js';
 import { normalizeCursorLimit } from '@/common/utils/cursor-pagination.js';
-import {
-  collaborationService,
-  type CollaborationService
-} from '@/modules/collaboration/collaboration.service.js';
 import { notesRepository, type NotesRepository } from '@/modules/notes/notes.repository.js';
 import type {
   CreateNoteInput,
@@ -21,8 +18,7 @@ import { tripsService, type TripsService } from '@/modules/trips/trips.service.j
 export class NotesService {
   constructor(
     private readonly repository: NotesRepository = notesRepository,
-    private readonly trips: TripsService = tripsService,
-    private readonly collaboration: CollaborationService = collaborationService
+    private readonly trips: TripsService = tripsService
   ) {}
 
   async listNotes(actor: AuthenticatedUser, query: ListNotesQuery) {
@@ -35,12 +31,7 @@ export class NotesService {
     }
 
     if (query.targetEntityType && query.targetEntityId) {
-      await this.collaboration.resolveWritableTarget(
-        actor,
-        query.targetEntityType,
-        query.targetEntityId,
-        query.tripId
-      );
+      await this.resolveTarget(actor, query.targetEntityType, query.targetEntityId, query.tripId);
     }
 
     return this.repository.list({
@@ -54,7 +45,7 @@ export class NotesService {
   }
 
   async createNote(actor: AuthenticatedUser, input: CreateNoteInput) {
-    const target = await this.collaboration.resolveWritableTarget(
+    const target = await this.resolveTarget(
       actor,
       input.targetEntityType,
       input.targetEntityId,
@@ -99,8 +90,7 @@ export class NotesService {
       tripId: target.tripId,
       actorId: actor.id,
       deviceId: input.deviceId,
-      clientMutationId: input.clientMutationId,
-      operation: 'ENTITY_CREATED'
+      clientMutationId: input.clientMutationId
     });
   }
 
@@ -110,7 +100,7 @@ export class NotesService {
       throw new NotFoundError({ resourceKey: 'resources.note' });
     }
 
-    await this.collaboration.ensureCanManageNote(actor, access);
+    await this.ensureCanManageNote(actor, access);
 
     if (!access.tripId) {
       throw new ConflictError('Note mutation requires a trip revision scope');
@@ -157,8 +147,7 @@ export class NotesService {
       tripId: access.tripId,
       actorId: actor.id,
       deviceId: input.deviceId,
-      clientMutationId: input.clientMutationId,
-      operation: 'ENTITY_UPDATED'
+      clientMutationId: input.clientMutationId
     });
   }
 
@@ -168,7 +157,7 @@ export class NotesService {
       throw new NotFoundError({ resourceKey: 'resources.note' });
     }
 
-    await this.collaboration.ensureCanManageNote(actor, access);
+    await this.ensureCanManageNote(actor, access);
 
     if (!access.tripId) {
       throw new ConflictError('Note mutation requires a trip revision scope');
@@ -201,8 +190,7 @@ export class NotesService {
       tripId: access.tripId,
       actorId: actor.id,
       deviceId: query.deviceId,
-      clientMutationId: query.clientMutationId,
-      operation: 'ENTITY_DELETED'
+      clientMutationId: query.clientMutationId
     });
   }
 
@@ -225,6 +213,60 @@ export class NotesService {
       parent.targetEntityId !== target.targetEntityId
     ) {
       throw new ConflictError('Reply target must match parent note target');
+    }
+  }
+
+  private async resolveTarget(
+    actor: AuthenticatedUser,
+    targetEntityType: CreateNoteInput['targetEntityType'],
+    targetEntityId: string,
+    requestedTripId?: string
+  ) {
+    const target = await this.repository.findTarget(targetEntityType, targetEntityId);
+    if (!target.exists) {
+      throw new NotFoundError({ resourceKey: 'resources.resource' });
+    }
+
+    const resolvedTripId =
+      target.tripId ?? (targetEntityType === 'TRIP' ? targetEntityId : requestedTripId);
+
+    if (!resolvedTripId) {
+      throw new ConflictError('A trip scope is required for this note target');
+    }
+
+    await this.trips.ensureCanAccessTrip(actor.id, resolvedTripId, actor.role);
+
+    return {
+      tripId: resolvedTripId,
+      targetEntityType,
+      targetEntityId
+    };
+  }
+
+  private async ensureCanManageNote(
+    actor: AuthenticatedUser,
+    note: {
+      tripId: string | null;
+      authorId: string | null;
+    }
+  ) {
+    if (note.authorId === actor.id) {
+      if (note.tripId) {
+        await this.trips.ensureCanAccessTrip(actor.id, note.tripId, actor.role);
+      }
+      return;
+    }
+
+    if (!note.tripId) {
+      if (actor.role === 'ADMIN') {
+        return;
+      }
+      throw new AuthorizationError();
+    }
+
+    const access = await this.trips.getAccessContext(actor.id, note.tripId, actor.role);
+    if (!access.canModerate) {
+      throw new AuthorizationError();
     }
   }
 }

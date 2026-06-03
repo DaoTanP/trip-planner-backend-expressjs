@@ -1,12 +1,6 @@
 import { z } from 'zod';
 
-export const noteTargetEntityTypes = [
-  'TRIP',
-  'ITINERARY_ITEM',
-  'EXPENSE',
-  'PLACE',
-  'ROUTE_SEGMENT'
-] as const;
+export const noteTargetEntityTypes = ['TRIP', 'ITINERARY_ITEM', 'EXPENSE', 'PLACE'] as const;
 
 const uuidParam = z.string().uuid();
 const clientMutationIdSchema = z.string().trim().max(120).optional();

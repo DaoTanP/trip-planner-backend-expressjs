@@ -414,50 +414,47 @@ When one module needs another module's rule, call the other module's service. Do
 - Microservices for organizational style rather than operational need.
 - New abstractions without repeated use or clear simplification.
 
-## 22. Timeline-First Trip Planner Architecture
+## 22. Stop-First Trip Planner Architecture
 
-The editor API is now timeline-first, route-first, and map-centric. A trip detail response contains trip metadata, ownership, visibility, settings, and lightweight counts only. It must not return a giant nested trip tree.
+The editor API is now stop-first and trip-aggregate-oriented. A trip detail response contains metadata, ownership, visibility, settings, revision, and lightweight counts only. It must not return a giant nested trip tree.
 
 ```text
 Trip
   -> ItineraryItem[]
-  -> Place[]
-  -> RouteSegment[]
+  -> Expense[]
+  -> Budget?
   -> Note[]
-  -> Collaborators[]
-  -> Budget/Expense[]
+  -> TripCollaborator[]
+  -> Notification[]
+  -> MutationEvent[]
 ```
 
-`ItineraryItem` is a first-class entity with direct `tripId`, optional `placeId`, optional `routeSegmentId`, `sortOrder`, `version`, and soft delete fields. `TripDay`, `legacyDayId`, day-target comments, and day-based reorder contracts are not part of the active model.
+`ItineraryItem` is a first-class stop with direct `tripId`, required `placeId`, `types[]`, optional `summary`, optional `startsAt`, optional `durationMinutes`, `sortOrder`, `version`, and soft delete fields. `TripDay`, `Destination`, route segments, route chains, and day-based reorder contracts are not part of the active model.
 
-Why: flat item sequences are easier to render as long timelines, reorder optimistically, synchronize with map markers, patch from realtime events, and reuse from future offline/mobile clients. Calendar day grouping can still exist, but it is computed from item times or UI labels and never required for persistence.
-
-`Destination` is not an active planning entity. High-level city/region hints should be represented through trip metadata or normalized `Place` records only when they are useful to query or render; itinerary activities still reference `placeId` directly.
+Why: stop records are easier to render as a journey timeline, reorder optimistically, synchronize with map markers, and reuse from future offline/mobile clients. Calendar day grouping and route display are presentation or derived-data concerns.
 
 ## 23. Granular Resource APIs
 
 The trip editor reads separate resources:
 
 - `GET /trips/:tripId` for metadata and summary counts.
-- `GET /trips/:tripId/itinerary` for flat itinerary items.
-- `GET /trips/:tripId/places` for normalized places used by the itinerary.
-- `GET /trips/:tripId/routes` for cached route geometry.
-- `GET /notes?tripId=...&targetEntityType=...&targetEntityId=...` for unified collaborative notes.
+- `GET /trips/:tripId/itinerary` for stop-first itinerary items.
+- `GET /trips/:tripId/places` for normalized places used by stops.
+- `GET /notes?tripId=...&targetEntityType=...&targetEntityId=...` for threaded notes.
 - `GET /trips/:tripId/collaborators` for sharing state.
-- `GET /trips/:tripId/expenses` for budget analytics inputs.
+- `GET /trips/:tripId/expenses` for expense rows and derived spending summary.
+- `GET /trips/:tripId/budget` for budget configuration plus derived totals.
 - `GET /trips/:tripId/mutation-events` for revision-based sync catch-up.
 
-Why: granular APIs keep payloads small, let TanStack Query invalidate only the changed resource, and make realtime/offline reconciliation possible without replacing a full trip graph after every mutation.
+Why: granular APIs keep payloads small, let TanStack Query invalidate changed resources, and make realtime/offline reconciliation possible without replacing a full trip graph after every mutation.
 
-`Note` is a unified collaboration entity attached with typed `targetEntityType` plus `targetEntityId`. Notes can target trips, itinerary items, expenses, places, route segments, and future collaboration surfaces without adding feature-specific note tables. `parentNoteId` supports threaded replies; `mentions`, `attachments`, and `metadata` are JSONB extension fields reserved for low-queryability collaboration payloads.
-
-Generic note targets are validated through `CollaborationEntity`, a lightweight registry keyed by `(entityType, entityId)` with an optional `tripId`. The registry centralizes collaboration ownership, future permissions, presence, reactions, tasks, and comments without adding polymorphic Prisma relations to every target table. Note mutations require a trip revision scope, increment `Trip.revision`, and append `MutationEvent` in the same transaction.
+`Note` is a threaded collaborative entity attached with typed `targetEntityType` plus `targetEntityId`. Notes can target trips, itinerary items, expenses, and places. Place-targeted notes require a trip scope because places are reusable globally. `parentNoteId` supports nested replies; `mentions`, `attachments`, and `metadata` are JSONB extension fields reserved for low-queryability collaboration payloads.
 
 ## 24. Cursor Pagination, Ordering, And Optimistic Updates
 
-Large collaboration resources use cursor pagination. Itinerary items page by `(sortOrder, id)`, while notes, comments, route segments, and expenses page by `(createdAt, id)`. Cursor strings are opaque versioned envelopes, and controllers return `limit`, `cursorVersion`, `nextCursor`, and `hasNextPage` through `sendCursorPaginated` and `meta.pagination`.
+Large collaborative resources use cursor pagination. Itinerary items page by `(sortOrder, id)`, while notes and expenses use stable timestamp/id cursors. Cursor strings are opaque versioned envelopes, and controllers return `limit`, `cursorVersion`, `nextCursor`, and `hasNextPage` through `sendCursorPaginated` and `meta.pagination`.
 
-Itinerary ordering uses large spaced integer positions: `65536`, `131072`, `196608`, and so on. Reorder endpoints are intent based: the client sends the moved item and its new neighbors, then the backend computes the next sparse order inside a transaction.
+Itinerary ordering uses large spaced integer positions: `65536`, `131072`, `196608`, and so on. Reorder endpoints are intent based: the client sends the moved item and its new neighbors, then the backend computes the next sparse order inside a transaction. Reordering stops never updates route data.
 
 ```json
 {
@@ -479,7 +476,7 @@ Every trip-affecting write also increments `Trip.revision` and appends a `Mutati
 
 Mutation event payloads are normalized entity patches, not full trip snapshots. Operations use stable names such as `ENTITY_CREATED`, `ENTITY_UPDATED`, `ENTITY_MOVED`, `ENTITY_DELETED`, and `ENTITY_REBALANCED`; payloads include `patchType`, `entityType`, `entityId`, and either `fields` or `tombstone`. This keeps future websocket and mobile sync consumers deterministic while preserving normal resource APIs as the source of truth.
 
-## 25. Place And Route Provider Boundaries
+## 25. Place, Expense, And Budget Boundaries
 
 `places` currently searches internal place records. Environment variables reserve future provider configuration:
 
@@ -490,9 +487,11 @@ Mutation event payloads are normalized entity patches, not full trip snapshots. 
 
 Future Google Places, Mapbox, or OSM geocoding adapters should normalize external records into the `Place` contract before returning them. Controllers should not call provider SDKs directly.
 
-`RouteSegment` stores provider, travel mode, from/to place IDs, route profile hash, optional departure time, optional traffic model, alternative route index, encoded polyline, distance, duration, lifecycle timestamps, expiration, and JSON metadata for provider-specific details. Its uniqueness is provider + from place + to place + travel mode + route profile hash + alternative index so Google, Mapbox, OSM, alternate routes, traffic-aware variants, and departure-time-sensitive variants can coexist. Route geometry is cacheable and reusable; it must not replace normalized place coordinates as the source of truth.
+Routes are derived data. The backend does not persist route structures, cached route geometry, route chains, or route synchronization state.
 
-Comments use `targetEntityType` and `targetEntityId` rather than one nullable column per target type. This keeps comments extensible for itinerary items, expenses, notes, routes, and future collaboration entities without adding schema branches for each feature.
+`Expense` is the financial source of truth. Spending reports, spent amount, remaining amount, and usage percentage are calculated from non-deleted expense rows.
+
+`Budget` is configuration only: currency, total limit, and metadata. It must not persist calculated spending aggregates.
 
 ## 26. Realtime Preparation
 
@@ -501,7 +500,7 @@ Realtime collaboration should be added as a transport over the same domain servi
 Recommended future shape:
 
 - Services append durable mutation events and increment trip revisions during the same committed write.
-- Redis coordinates websocket fanout, route cache reuse, and presence.
+- Redis coordinates websocket fanout and presence.
 - `clientMutationId` and optional `deviceId` suppress echo updates for the originating client/device.
 - Clients can catch up with `GET /trips/:tripId/mutation-events?sinceRevision=<revision>` or cursor pagination before applying future websocket patches.
 - The frontend patches or invalidates granular React Query caches from realtime events.
@@ -516,6 +515,6 @@ Delta sync is a catch-up boundary, not a replacement for normalized reads. If a 
 
 ## 28. Planner Workspace API Boundary
 
-The planner workspace is a frontend composition over granular resources. Backend APIs provide normalized trip metadata, itinerary items, places, route segments, notes, collaborators, expenses, and mutation events. The backend should not add a nested planner workspace DTO, `TripDay` grouping, or form-specific trip editor response.
+The planner workspace is a frontend composition over granular resources. Backend APIs provide normalized trip metadata, stop-first itinerary items, places, notes, collaborators, expenses, budget configuration, and mutation events. The backend should not add a nested planner workspace DTO, `TripDay` grouping, persisted route DTO, or form-specific trip editor response.
 
 Planner UX features such as derived date range, timeline grouping, route-gap warnings, idle-gap warnings, selected-item note panels, map hover state, and command palette state are client concerns. Add backend endpoints only when the computation is expensive, permission-sensitive, or shared across clients, and keep those endpoints normalized and cacheable.

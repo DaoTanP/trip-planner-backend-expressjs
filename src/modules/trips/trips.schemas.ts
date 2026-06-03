@@ -27,7 +27,6 @@ export const createTripSchema = z.object({
   body: z
     .object({
       title: z.string().trim().min(2).max(180),
-      description: z.string().trim().max(5000).optional(),
       startDate: dateOnlySchema.optional(),
       endDate: dateOnlySchema.optional(),
       timezone: timezoneSchema.default(DEFAULT_TIMEZONE),
@@ -46,7 +45,6 @@ export const updateTripSchema = z.object({
   body: z
     .object({
       title: z.string().trim().min(2).max(180).optional(),
-      description: z.string().trim().max(5000).nullable().optional(),
       startDate: dateOnlySchema.nullable().optional(),
       endDate: dateOnlySchema.nullable().optional(),
       timezone: timezoneSchema.optional(),
@@ -64,19 +62,7 @@ export const updateTripSchema = z.object({
     })
 });
 
-export const listTripExpensesSchema = z.object({
-  params: z.object({
-    tripId: uuidParam
-  }),
-  query: z.object({
-    cursor: z.string().trim().optional(),
-    limit: z.coerce.number().int().positive().max(100).default(50)
-  })
-});
-
 export type ListTripsQuery = z.infer<typeof listTripsSchema>['query'];
 export type TripIdParams = z.infer<typeof tripIdSchema>['params'];
 export type CreateTripInput = z.infer<typeof createTripSchema>['body'];
 export type UpdateTripInput = z.infer<typeof updateTripSchema>['body'];
-export type ListTripExpensesParams = z.infer<typeof listTripExpensesSchema>['params'];
-export type ListTripExpensesQuery = z.infer<typeof listTripExpensesSchema>['query'];

@@ -4,21 +4,12 @@ import type { ParamsDictionary } from 'express-serve-static-core';
 import {
   serializeTripCollaborator,
   serializeTripDetail,
-  serializeTripExpenses,
   serializeTripSummary
 } from '@/api/serializers/trip.serializer.js';
 import { AuthError } from '@/common/errors/auth-error.js';
-import {
-  sendCreated,
-  sendCursorPaginated,
-  sendNoContent,
-  sendPaginated,
-  sendSuccess
-} from '@/common/utils/response.js';
+import { sendCreated, sendNoContent, sendPaginated, sendSuccess } from '@/common/utils/response.js';
 import type {
   CreateTripInput,
-  ListTripExpensesParams,
-  ListTripExpensesQuery,
   ListTripsQuery,
   TripIdParams,
   UpdateTripInput
@@ -70,26 +61,6 @@ export class TripsController {
       req.params.tripId
     );
     return sendSuccess(res, { collaborators: collaborators.map(serializeTripCollaborator) });
-  };
-
-  getExpenses = async (
-    req: Request<ListTripExpensesParams, unknown, unknown, ListTripExpensesQuery>,
-    res: Response
-  ) => {
-    const expenses = await this.service.getExpenses(
-      requireUserId(req),
-      req.params.tripId,
-      req.query
-    );
-    return sendCursorPaginated(
-      res,
-      serializeTripExpenses({
-        budget: expenses.budget,
-        categories: expenses.categories,
-        expenses: expenses.expenses.items
-      }),
-      expenses.expenses.pagination
-    );
   };
 }
 
