@@ -36,10 +36,14 @@ const enMessages = {
   'errors.authorization.forbidden': 'You do not have permission to perform this action',
   'errors.authorization.tripOwnerDelete': 'Only the trip owner can delete a trip',
   'errors.conflict.emailRegistered': 'Email is already registered',
+  'errors.conflict.itineraryInsertionInvalid': 'Itinerary insertion position is invalid',
   'errors.conflict.resource': 'Resource already exists',
   'errors.conflict.uniqueValue': 'A record with the same unique value already exists',
   'errors.internal': 'Internal server error',
   'errors.notFound.resource': '{resource} not found',
+  'errors.places.reverseGeocodeFailed': 'Reverse geocoding failed',
+  'errors.places.reverseGeocodeProviderNotConfigured':
+    'Reverse geocoding provider is not configured',
   'errors.notFound.route': 'Route {route} not found',
   'errors.rateLimit.exceeded': 'Too many requests',
   'errors.validation.generic': 'Validation failed',
@@ -78,6 +82,8 @@ const enMessages = {
   'validation.invalidUnion': 'Input does not match any allowed shape',
   'validation.invalidUrl': 'Expected a valid URL',
   'validation.invalidUuid': 'Expected a valid UUID',
+  'validation.itinerary.sameNeighbor':
+    'beforeItemId and afterItemId must reference different items',
   'validation.locale.unsupported': 'Unsupported locale',
   'validation.notFinite': 'Expected a finite number',
   'validation.notMultipleOf': 'Expected a multiple of {multipleOf}',

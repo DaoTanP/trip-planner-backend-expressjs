@@ -7,6 +7,8 @@ import type {
   CreatePlaceInput,
   ListPlacesQuery,
   PlaceIdParams,
+  ReverseGeocodeQuery,
+  ResolvePlaceInput,
   SearchPlacesQuery
 } from '@/modules/places/places.schemas.js';
 import { placesService, type PlacesService } from '@/modules/places/places.service.js';
@@ -30,6 +32,14 @@ export class PlacesController {
     return sendSuccess(res, { places: places.map(serializePlace) });
   };
 
+  reverseGeocode = async (
+    req: Request<ParamsDictionary, unknown, unknown, ReverseGeocodeQuery>,
+    res: Response
+  ) => {
+    const place = await this.service.reverseGeocode(req.query);
+    return sendSuccess(res, { place });
+  };
+
   get = async (req: Request<PlaceIdParams>, res: Response) => {
     const place = await this.service.getPlace(req.params.placeId);
     return sendSuccess(res, { place: serializePlace(place) });
@@ -38,6 +48,14 @@ export class PlacesController {
   create = async (req: Request<ParamsDictionary, unknown, CreatePlaceInput>, res: Response) => {
     const place = await this.service.createPlace(req.body);
     return sendCreated(res, { place: serializePlace(place) });
+  };
+
+  resolve = async (req: Request<ParamsDictionary, unknown, ResolvePlaceInput>, res: Response) => {
+    const result = await this.service.resolvePlace(req.body);
+    return sendSuccess(res, {
+      place: serializePlace(result.place),
+      created: result.created
+    });
   };
 }
 

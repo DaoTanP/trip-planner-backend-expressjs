@@ -10,6 +10,7 @@ import {
   getMidpointSortOrder,
   itineraryItemOrderBy,
   itineraryOrderStride,
+  isBeforeInItineraryOrder,
   spacedItineraryOrder
 } from '@/modules/itinerary/itinerary-ordering.js';
 import {
@@ -40,9 +41,20 @@ type ReorderInput = {
   actorId: string;
 };
 
+type CreatePositionInput = {
+  beforeItemId?: string | null | undefined;
+  afterItemId?: string | null | undefined;
+};
+
 type ItineraryMutationResult = {
   item: ItineraryItem;
   revision: bigint;
+};
+
+type ItineraryCreateResult = {
+  item: ItineraryItem | null;
+  affectedItems: ItineraryItem[];
+  revision: bigint | null;
 };
 
 type ItineraryReorderResult = {
@@ -135,27 +147,114 @@ export class ItineraryRepository {
 
   createItineraryItem(
     data: Prisma.ItineraryItemUncheckedCreateInput,
-    mutation: ItineraryMutationInput
-  ): Promise<ItineraryMutationResult> {
+    mutation: ItineraryMutationInput,
+    position: CreatePositionInput = {}
+  ): Promise<ItineraryCreateResult> {
     return prisma.$transaction(async (tx) => {
-      const item = await tx.itineraryItem.create({
-        data
-      });
-      const revision = await appendMutationEvent(tx, {
-        ...mutation,
-        tripId: item.tripId,
-        entityType: 'ITINERARY_ITEM',
-        entityId: item.id,
-        operation: syncOperations.created,
-        payload: createEntityPatchPayload({
-          patchType: syncOperations.created,
-          entityType: 'ITINERARY_ITEM',
-          entityId: item.id,
-          fields: itineraryItemPatchFields(item)
-        })
+      const createData = { ...data };
+      const hasRelativePosition = Boolean(position.beforeItemId || position.afterItemId);
+
+      if (!hasRelativePosition) {
+        if (createData.sortOrder === undefined) {
+          const maxSortOrder = await tx.itineraryItem.aggregate({
+            where: {
+              tripId: createData.tripId,
+              deletedAt: null
+            },
+            _max: {
+              sortOrder: true
+            }
+          });
+
+          createData.sortOrder = (maxSortOrder._max.sortOrder ?? 0) + itineraryOrderStride;
+        }
+
+        const item = await tx.itineraryItem.create({
+          data: createData
+        });
+        const revision = await this.appendCreateMutationEvent(tx, item, mutation);
+
+        return { item, affectedItems: [item], revision };
+      }
+
+      const neighbors = await tx.itineraryItem.findMany({
+        where: {
+          tripId: createData.tripId,
+          deletedAt: null,
+          id: {
+            in: [position.beforeItemId, position.afterItemId].filter(Boolean) as string[]
+          }
+        },
+        select: {
+          id: true,
+          sortOrder: true
+        }
       });
 
-      return { item, revision };
+      const before = position.beforeItemId
+        ? neighbors.find((neighbor) => neighbor.id === position.beforeItemId)
+        : null;
+      const after = position.afterItemId
+        ? neighbors.find((neighbor) => neighbor.id === position.afterItemId)
+        : null;
+
+      if (
+        (position.beforeItemId && !before) ||
+        (position.afterItemId && !after) ||
+        (before && after && !isBeforeInItineraryOrder(after, before))
+      ) {
+        return { item: null, affectedItems: [], revision: null };
+      }
+
+      const targetWindow = await this.resolveInsertionWindow(tx, createData.tripId, before, after);
+      const nextSortOrder = getMidpointSortOrder(
+        targetWindow.lowerSortOrder,
+        targetWindow.upperSortOrder
+      );
+
+      if (nextSortOrder !== null) {
+        createData.sortOrder = nextSortOrder;
+        const item = await tx.itineraryItem.create({
+          data: createData
+        });
+        const revision = await this.appendCreateMutationEvent(tx, item, mutation, {
+          beforeItemId: position.beforeItemId ?? null,
+          afterItemId: position.afterItemId ?? null
+        });
+
+        return { item, affectedItems: [item], revision };
+      }
+
+      const item = await tx.itineraryItem.create({
+        data: {
+          ...createData,
+          sortOrder: 0
+        }
+      });
+      const affectedItems = await this.rebalanceAroundInsertion(
+        tx,
+        item.tripId,
+        item.id,
+        before?.id,
+        after?.id,
+        mutation.clientMutationId
+      );
+      const rebalancedItem = affectedItems.find((candidate) => candidate.id === item.id) ?? null;
+      if (!rebalancedItem) {
+        return { item: null, affectedItems: [], revision: null };
+      }
+      const revision = await this.appendCreateMutationEvent(tx, rebalancedItem, mutation, {
+        beforeItemId: position.beforeItemId ?? null,
+        afterItemId: position.afterItemId ?? null,
+        affectedItems: affectedItems.map((candidate) => ({
+          id: candidate.id,
+          sortOrder: candidate.sortOrder,
+          version: candidate.version,
+          updatedAt: candidate.updatedAt.toISOString()
+        }))
+      });
+
+      return { item: rebalancedItem, affectedItems, revision };
     });
   }
 
@@ -354,6 +453,155 @@ export class ItineraryRepository {
         affectedItems: rebalanced,
         revision
       };
+    });
+  }
+
+  private appendCreateMutationEvent(
+    tx: Prisma.TransactionClient,
+    item: ItineraryItem,
+    mutation: ItineraryMutationInput,
+    context?: Prisma.InputJsonObject
+  ): Promise<bigint> {
+    const fields: Prisma.InputJsonObject = {
+      ...itineraryItemPatchFields(item),
+      ...(context ?? {})
+    };
+
+    return appendMutationEvent(tx, {
+      ...mutation,
+      tripId: item.tripId,
+      entityType: 'ITINERARY_ITEM',
+      entityId: item.id,
+      operation: syncOperations.created,
+      payload: createEntityPatchPayload({
+        patchType: syncOperations.created,
+        entityType: 'ITINERARY_ITEM',
+        entityId: item.id,
+        fields
+      })
+    });
+  }
+
+  private async resolveInsertionWindow(
+    tx: Prisma.TransactionClient,
+    tripId: string,
+    before: { id: string; sortOrder: number } | null | undefined,
+    after: { id: string; sortOrder: number } | null | undefined
+  ) {
+    if (before && after) {
+      return {
+        lowerSortOrder: after.sortOrder,
+        upperSortOrder: before.sortOrder
+      };
+    }
+
+    if (before) {
+      const previous = await tx.itineraryItem.findFirst({
+        where: {
+          tripId,
+          deletedAt: null,
+          sortOrder: { lt: before.sortOrder }
+        },
+        orderBy: [{ sortOrder: 'desc' }, { id: 'desc' }],
+        select: { sortOrder: true }
+      });
+
+      return {
+        lowerSortOrder: previous?.sortOrder ?? 0,
+        upperSortOrder: before.sortOrder
+      };
+    }
+
+    if (after) {
+      const next = await tx.itineraryItem.findFirst({
+        where: {
+          tripId,
+          deletedAt: null,
+          sortOrder: { gt: after.sortOrder }
+        },
+        orderBy: itineraryItemOrderBy,
+        select: { sortOrder: true }
+      });
+
+      return {
+        lowerSortOrder: after.sortOrder,
+        upperSortOrder: next?.sortOrder ?? after.sortOrder + itineraryOrderStride * 2
+      };
+    }
+
+    const maxSortOrder = await tx.itineraryItem.aggregate({
+      where: {
+        tripId,
+        deletedAt: null
+      },
+      _max: {
+        sortOrder: true
+      }
+    });
+
+    const lowerSortOrder = maxSortOrder._max.sortOrder ?? 0;
+    return {
+      lowerSortOrder,
+      upperSortOrder: lowerSortOrder + itineraryOrderStride * 2
+    };
+  }
+
+  private async rebalanceAroundInsertion(
+    tx: Prisma.TransactionClient,
+    tripId: string,
+    insertedItemId: string,
+    beforeItemId?: string,
+    afterItemId?: string,
+    clientMutationId?: string
+  ): Promise<ItineraryItem[]> {
+    const items = await tx.itineraryItem.findMany({
+      where: {
+        tripId,
+        deletedAt: null
+      },
+      orderBy: itineraryItemOrderBy
+    });
+    const insertedItem = items.find((item) => item.id === insertedItemId);
+    if (!insertedItem) {
+      return [];
+    }
+
+    const orderedItems = items.filter((item) => item.id !== insertedItemId);
+    const targetIndex =
+      beforeItemId !== undefined
+        ? orderedItems.findIndex((item) => item.id === beforeItemId)
+        : afterItemId !== undefined
+          ? orderedItems.findIndex((item) => item.id === afterItemId) + 1
+          : orderedItems.length;
+
+    orderedItems.splice(Math.max(targetIndex, 0), 0, insertedItem);
+
+    await Promise.all(
+      orderedItems.map((orderedItem, index) => {
+        const data: Prisma.ItineraryItemUpdateInput = {
+          sortOrder: spacedItineraryOrder(index)
+        };
+
+        if (orderedItem.id !== insertedItemId) {
+          data.version = { increment: 1 };
+        }
+        if (orderedItem.id === insertedItemId && clientMutationId) {
+          data.lastClientMutationId = clientMutationId;
+        }
+
+        return tx.itineraryItem.update({
+          where: { id: orderedItem.id },
+          data
+        });
+      })
+    );
+
+    return tx.itineraryItem.findMany({
+      where: {
+        tripId,
+        deletedAt: null
+      },
+      orderBy: itineraryItemOrderBy
     });
   }
 

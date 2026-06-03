@@ -49,6 +49,10 @@ const envSchema = z.object({
   GOOGLE_PLACES_API_KEY: optionalString,
   MAPBOX_ACCESS_TOKEN: optionalString,
   OSM_GEOCODING_ENDPOINT: z.string().url().default('https://nominatim.openstreetmap.org/search'),
+  OSM_REVERSE_GEOCODING_ENDPOINT: z
+    .string()
+    .url()
+    .default('https://nominatim.openstreetmap.org/reverse'),
 
   CORS_ORIGINS: z
     .string()

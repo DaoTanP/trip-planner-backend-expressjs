@@ -138,6 +138,7 @@ export type TripStatusDto = 'DRAFT' | 'PLANNED' | 'ACTIVE' | 'COMPLETED' | 'ARCH
 export type TripVisibilityDto = 'PRIVATE' | 'SHARED' | 'PUBLIC';
 export type PlaceProviderDto = 'MANUAL' | 'GOOGLE' | 'MAPBOX' | 'OSM' | 'INTERNAL';
 export type PlaceSourceDto = PlaceProviderDto;
+export type ReverseGeocodeProviderDto = 'OSM' | 'GOOGLE' | 'MAPBOX';
 export type NoteTargetEntityTypeDto = 'TRIP' | 'ITINERARY_ITEM' | 'EXPENSE' | 'PLACE';
 export type ItineraryItemTypeDto =
   | 'ACTIVITY'
@@ -220,6 +221,18 @@ export type PlaceDto = {
   metadata: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type ReverseGeocodePlaceDto = {
+  name: string | null;
+  formattedAddress: string | null;
+  countryCode: string | null;
+  latitude: number;
+  longitude: number;
+  timezone?: string | null;
+  provider: ReverseGeocodeProviderDto;
+  providerPlaceId?: string | null;
+  providerPayload?: Record<string, unknown>;
 };
 
 export type ItineraryItemDto = {
@@ -374,6 +387,8 @@ export type UpdateTripRequestDto = Partial<
 
 export type CreateItineraryItemRequestDto = {
   placeId: string;
+  beforeItemId?: string | null;
+  afterItemId?: string | null;
   types?: ItineraryItemTypeDto[];
   summary?: string | null;
   sortOrder?: number;
@@ -499,6 +514,11 @@ export type SearchPlacesQueryDto = ListPlacesQueryDto & {
   lng?: number;
 };
 
+export type ReverseGeocodeQueryDto = {
+  lat: number;
+  lng: number;
+};
+
 export type ListExpensesQueryDto = CursorListQueryDto & {
   categoryId?: string;
   itineraryItemId?: string;
@@ -567,6 +587,26 @@ export type CreatePlaceRequestDto = {
   websiteUrl?: string;
   phoneNumber?: string;
   timezone?: string;
+  categories?: string[];
+  providerPayload?: Record<string, unknown>;
+  sourcePayload?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+};
+
+export type ResolvePlaceRequestDto = {
+  provider: PlaceProviderDto;
+  providerPlaceId?: string | null;
+  source?: PlaceSourceDto;
+  externalId?: string | null;
+  name: string;
+  address?: string | null;
+  formattedAddress?: string | null;
+  countryCode?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  websiteUrl?: string | null;
+  phoneNumber?: string | null;
+  timezone?: string | null;
   categories?: string[];
   providerPayload?: Record<string, unknown>;
   sourcePayload?: Record<string, unknown>;
@@ -760,10 +800,22 @@ export type ApiV1Paths = {
       response: ApiSuccessResponse<{ place: PlaceDto }>;
     };
   };
+  '/places/resolve': {
+    post: {
+      request: ResolvePlaceRequestDto;
+      response: ApiSuccessResponse<{ place: PlaceDto; created: boolean }>;
+    };
+  };
   '/places/search': {
     get: {
       query: SearchPlacesQueryDto;
       response: ApiSuccessResponse<{ places: PlaceDto[] }>;
+    };
+  };
+  '/places/reverse-geocode': {
+    get: {
+      query: ReverseGeocodeQueryDto;
+      response: ApiSuccessResponse<{ place: ReverseGeocodePlaceDto }>;
     };
   };
   '/places/{placeId}': {

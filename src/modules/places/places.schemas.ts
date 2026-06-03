@@ -1,6 +1,17 @@
 import { PlaceProvider } from '@prisma/client';
 import { z } from 'zod';
 
+const nullableTrimmedString = (max: number) =>
+  z.string().trim().min(1).max(max).nullable().optional();
+
+const nullableCountryCodeSchema = z
+  .string()
+  .trim()
+  .length(2)
+  .transform((value) => value.toUpperCase())
+  .nullable()
+  .optional();
+
 export const listPlacesSchema = z.object({
   query: z.object({
     q: z.string().trim().min(1).max(120).optional(),
@@ -26,6 +37,13 @@ export const searchPlacesSchema = z.object({
     lat: z.coerce.number().min(-90).max(90).optional(),
     lng: z.coerce.number().min(-180).max(180).optional(),
     limit: z.coerce.number().int().positive().max(50).default(20)
+  })
+});
+
+export const reverseGeocodeSchema = z.object({
+  query: z.object({
+    lat: z.coerce.number().min(-90).max(90),
+    lng: z.coerce.number().min(-180).max(180)
   })
 });
 
@@ -62,7 +80,31 @@ export const createPlaceSchema = z.object({
   })
 });
 
+export const resolvePlaceSchema = z.object({
+  body: z.object({
+    provider: z.nativeEnum(PlaceProvider),
+    providerPlaceId: nullableTrimmedString(255),
+    source: z.nativeEnum(PlaceProvider).optional(),
+    externalId: nullableTrimmedString(255),
+    name: z.string().trim().min(1).max(180),
+    address: nullableTrimmedString(1000),
+    formattedAddress: nullableTrimmedString(1000),
+    countryCode: nullableCountryCodeSchema,
+    latitude: z.number().min(-90).max(90).nullable().optional(),
+    longitude: z.number().min(-180).max(180).nullable().optional(),
+    websiteUrl: z.string().url().nullable().optional(),
+    phoneNumber: nullableTrimmedString(40),
+    timezone: nullableTrimmedString(80),
+    categories: z.array(z.string().trim().min(1).max(80)).default([]),
+    providerPayload: z.record(z.unknown()).optional(),
+    sourcePayload: z.record(z.unknown()).optional(),
+    metadata: z.record(z.unknown()).optional()
+  })
+});
+
 export type ListPlacesQuery = z.infer<typeof listPlacesSchema>['query'];
 export type SearchPlacesQuery = z.infer<typeof searchPlacesSchema>['query'];
+export type ReverseGeocodeQuery = z.infer<typeof reverseGeocodeSchema>['query'];
 export type CreatePlaceInput = z.infer<typeof createPlaceSchema>['body'];
+export type ResolvePlaceInput = z.infer<typeof resolvePlaceSchema>['body'];
 export type PlaceIdParams = z.infer<typeof placeIdSchema>['params'];

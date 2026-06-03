@@ -42,20 +42,31 @@ export const createTripItineraryItemSchema = z.object({
   params: z.object({
     tripId: uuidParam
   }),
-  body: z.object({
-    placeId: uuidParam,
-    types: z.array(z.nativeEnum(ItineraryItemType)).min(1).default([ItineraryItemType.ACTIVITY]),
-    summary: z.string().trim().max(500).nullable().optional(),
-    sortOrder: z.number().int().min(0).optional(),
-    startsAt: dateTimeSchema.nullable().optional(),
-    durationMinutes: z.number().int().nonnegative().nullable().optional(),
-    status: z.nativeEnum(ItineraryItemStatus).default(ItineraryItemStatus.PLANNED),
-    metadata: z.record(z.unknown()).nullable().optional(),
-    timezone: timezoneSchema.default(DEFAULT_TIMEZONE),
-    expectedRevision: revisionStringSchema,
-    clientMutationId: clientMutationIdSchema,
-    deviceId: deviceIdSchema
-  })
+  body: z
+    .object({
+      placeId: uuidParam,
+      beforeItemId: uuidParam.nullable().optional(),
+      afterItemId: uuidParam.nullable().optional(),
+      types: z.array(z.nativeEnum(ItineraryItemType)).min(1).default([ItineraryItemType.ACTIVITY]),
+      summary: z.string().trim().max(500).nullable().optional(),
+      sortOrder: z.number().int().min(0).optional(),
+      startsAt: dateTimeSchema.nullable().optional(),
+      durationMinutes: z.number().int().nonnegative().nullable().optional(),
+      status: z.nativeEnum(ItineraryItemStatus).default(ItineraryItemStatus.PLANNED),
+      metadata: z.record(z.unknown()).nullable().optional(),
+      timezone: timezoneSchema.default(DEFAULT_TIMEZONE),
+      expectedRevision: revisionStringSchema,
+      clientMutationId: clientMutationIdSchema,
+      deviceId: deviceIdSchema
+    })
+    .refine(
+      (value) =>
+        !value.beforeItemId || !value.afterItemId || value.beforeItemId !== value.afterItemId,
+      {
+        message: 'validation.itinerary.sameNeighbor',
+        path: ['beforeItemId']
+      }
+    )
 });
 
 export const updateItineraryItemSchema = z.object({

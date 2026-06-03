@@ -3,7 +3,6 @@ import type { Prisma } from '@prisma/client';
 import { ConflictError } from '@/common/errors/conflict-error.js';
 import { NotFoundError } from '@/common/errors/not-found-error.js';
 import { normalizeCursorLimit } from '@/common/utils/cursor-pagination.js';
-import { itineraryOrderStride } from '@/modules/itinerary/itinerary-ordering.js';
 import {
   itineraryRepository,
   type ItineraryRepository
@@ -58,11 +57,27 @@ export class ItineraryService {
 
     await this.trips.ensureExpectedRevision(tripId, input.expectedRevision);
 
-    return this.repository.createItineraryItem(await this.toCreateData(tripId, input), {
-      actorId: userId,
-      deviceId: input.deviceId,
-      clientMutationId: input.clientMutationId
-    });
+    const result = await this.repository.createItineraryItem(
+      this.toCreateData(tripId, input),
+      {
+        actorId: userId,
+        deviceId: input.deviceId,
+        clientMutationId: input.clientMutationId
+      },
+      {
+        beforeItemId: input.beforeItemId,
+        afterItemId: input.afterItemId
+      }
+    );
+
+    if (!result.item || result.revision === null) {
+      throw new ConflictError({ messageKey: 'errors.conflict.itineraryInsertionInvalid' });
+    }
+
+    return {
+      item: result.item,
+      revision: result.revision
+    };
   }
 
   async updateItineraryItem(userId: string, itemId: string, input: UpdateItineraryItemInput) {
@@ -217,21 +232,17 @@ export class ItineraryService {
     };
   }
 
-  private async toCreateData(
+  private toCreateData(
     tripId: string,
     input: CreateItineraryItemInput
-  ): Promise<Prisma.ItineraryItemUncheckedCreateInput> {
-    const sortOrder =
-      input.sortOrder ??
-      ((await this.repository.getMaxSortOrder(tripId))._max.sortOrder ?? 0) + itineraryOrderStride;
-
+  ): Prisma.ItineraryItemUncheckedCreateInput {
     const data: Prisma.ItineraryItemUncheckedCreateInput = {
       tripId,
       placeId: input.placeId,
-      types: input.types,
-      sortOrder
+      types: input.types
     };
 
+    if (input.sortOrder !== undefined) data.sortOrder = input.sortOrder;
     if (input.summary !== undefined) data.summary = input.summary;
     if (input.startsAt) data.startsAt = new Date(input.startsAt);
     if (input.durationMinutes !== undefined) data.durationMinutes = input.durationMinutes;

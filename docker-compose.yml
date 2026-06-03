@@ -29,6 +29,7 @@ services:
       GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY:-}
       MAPBOX_ACCESS_TOKEN: ${MAPBOX_ACCESS_TOKEN:-}
       OSM_GEOCODING_ENDPOINT: ${OSM_GEOCODING_ENDPOINT:-https://nominatim.openstreetmap.org/search}
+      OSM_REVERSE_GEOCODING_ENDPOINT: ${OSM_REVERSE_GEOCODING_ENDPOINT:-https://nominatim.openstreetmap.org/reverse}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
       RATE_LIMIT_WINDOW_MS: 900000
       RATE_LIMIT_MAX: 300
@@ -71,6 +72,7 @@ services:
       GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY:-}
       MAPBOX_ACCESS_TOKEN: ${MAPBOX_ACCESS_TOKEN:-}
       OSM_GEOCODING_ENDPOINT: ${OSM_GEOCODING_ENDPOINT:-https://nominatim.openstreetmap.org/search}
+      OSM_REVERSE_GEOCODING_ENDPOINT: ${OSM_REVERSE_GEOCODING_ENDPOINT:-https://nominatim.openstreetmap.org/reverse}
       MAIL_HOST: mailpit
       MAIL_PORT: 1025
     volumes:

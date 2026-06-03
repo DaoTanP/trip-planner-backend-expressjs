@@ -484,6 +484,7 @@ Mutation event payloads are normalized entity patches, not full trip snapshots. 
 - `GOOGLE_PLACES_API_KEY`
 - `MAPBOX_ACCESS_TOKEN`
 - `OSM_GEOCODING_ENDPOINT`
+- `OSM_REVERSE_GEOCODING_ENDPOINT`
 
 Future Google Places, Mapbox, or OSM geocoding adapters should normalize external records into the `Place` contract before returning them. Controllers should not call provider SDKs directly.
 

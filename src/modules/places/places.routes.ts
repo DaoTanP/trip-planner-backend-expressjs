@@ -8,6 +8,8 @@ import {
   createPlaceSchema,
   listPlacesSchema,
   placeIdSchema,
+  reverseGeocodeSchema,
+  resolvePlaceSchema,
   searchPlacesSchema
 } from '@/modules/places/places.schemas.js';
 
@@ -19,6 +21,16 @@ placesRouter.get(
   '/search',
   validateRequest(searchPlacesSchema),
   asyncHandler(placesController.search)
+);
+placesRouter.get(
+  '/reverse-geocode',
+  validateRequest(reverseGeocodeSchema),
+  asyncHandler(placesController.reverseGeocode)
+);
+placesRouter.post(
+  '/resolve',
+  validateRequest(resolvePlaceSchema),
+  asyncHandler(placesController.resolve)
 );
 placesRouter.get('/:placeId', validateRequest(placeIdSchema), asyncHandler(placesController.get));
 placesRouter.post('/', validateRequest(createPlaceSchema), asyncHandler(placesController.create));
