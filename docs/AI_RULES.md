@@ -303,7 +303,7 @@ AI agents changing the trip editor backend must:
 - Serialize trip detail responses through `trip.serializer.ts` and keep them metadata-only.
 - Return itinerary, threaded notes, places, collaborators, expenses, budget configuration, and mutation events through granular endpoints. Cursor paginate large collaborative resources.
 - Treat `Expense` as the source of truth for spending and `Budget` as configuration only. Derived spending totals must come from expense queries.
-- Treat route output as derived data generated on demand. Do not persist route segments, cached polylines, route chains, or route synchronization state.
+- Treat route output as derived data generated on demand. Do not persist route segments, cached polylines, route chains, route geometry, route duration, route distance, provider output, or route synchronization state. Persist only lightweight user intent such as stop-pair travel mode preferences.
 - Update `src/api/contracts/v1.ts` and sync the frontend contract after API shape changes.
 - Add provider configuration to `src/config/env.ts`, `.env.example`, and Docker compose.
 

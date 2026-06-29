@@ -7,6 +7,7 @@ import type {
   MutationEventDto,
   NoteDto,
   PlaceDto,
+  TripRoutePreferenceDto,
   TripCollaboratorDto,
   TripDetailDto,
   TripExpensesDto,
@@ -51,6 +52,17 @@ type ItineraryItemRecord = {
   createdAt: Date | string;
   updatedAt: Date | string;
   deletedAt?: Date | string | null;
+};
+
+type TripRoutePreferenceRecord = {
+  id: string;
+  tripId: string;
+  fromItemId: string;
+  toItemId: string;
+  travelMode: string;
+  version?: number;
+  createdAt: Date | string;
+  updatedAt: Date | string;
 };
 
 type NoteRecord = {
@@ -254,6 +266,19 @@ export const serializeItineraryItem = (item: ItineraryItemRecord): ItineraryItem
   createdAt: toIsoString(item.createdAt) ?? '',
   updatedAt: toIsoString(item.updatedAt) ?? '',
   deletedAt: toIsoString(item.deletedAt ?? null)
+});
+
+export const serializeTripRoutePreference = (
+  routePreference: TripRoutePreferenceRecord
+): TripRoutePreferenceDto => ({
+  id: routePreference.id,
+  tripId: routePreference.tripId,
+  fromItemId: routePreference.fromItemId,
+  toItemId: routePreference.toItemId,
+  travelMode: routePreference.travelMode as TripRoutePreferenceDto['travelMode'],
+  version: routePreference.version ?? 1,
+  createdAt: toIsoString(routePreference.createdAt) ?? '',
+  updatedAt: toIsoString(routePreference.updatedAt) ?? ''
 });
 
 export const serializeNote = (note: NoteRecord): NoteDto => ({

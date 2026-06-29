@@ -488,7 +488,7 @@ Mutation event payloads are normalized entity patches, not full trip snapshots. 
 
 Future Google Places, Mapbox, or OSM geocoding adapters should normalize external records into the `Place` contract before returning them. Controllers should not call provider SDKs directly.
 
-Routes are derived data. The backend does not persist route structures, cached route geometry, route chains, or route synchronization state.
+Routes are derived data. The backend does not persist route structures, cached route geometry, route chains, route duration, route distance, polylines, provider output, or route synchronization state. The backend may persist lightweight route intent for adjacent stop pairs, such as `fromItemId`, `toItemId`, and `travelMode`, through route preferences.
 
 `Expense` is the financial source of truth. Spending reports, spent amount, remaining amount, and usage percentage are calculated from non-deleted expense rows.
 

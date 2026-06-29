@@ -176,6 +176,7 @@ model Trip {
   itineraryItems    ItineraryItem[]
   notes             Note[]
   budget            Budget?
+  routePreferences  TripRoutePreference[]
   expenseCategories ExpenseCategory[]
   expenses          Expense[]
   notifications     Notification[]
@@ -230,12 +231,35 @@ model ItineraryItem {
   trip     Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
   place    Place     @relation(fields: [placeId], references: [id], onDelete: Restrict)
   expenses Expense[]
+  routePreferencesFrom TripRoutePreference[] @relation("TripRoutePreferenceFromItem")
+  routePreferencesTo   TripRoutePreference[] @relation("TripRoutePreferenceToItem")
 
   @@index([tripId, deletedAt, sortOrder, id])
   @@index([tripId, status])
   @@index([placeId])
   @@index([status])
   @@map("Activity")
+}
+
+model TripRoutePreference {
+  id                   String   @id @default(uuid()) @db.Uuid
+  tripId               String   @db.Uuid
+  fromItemId           String   @db.Uuid
+  toItemId             String   @db.Uuid
+  travelMode           String   @db.VarChar(40)
+  version              Int      @default(1)
+  lastClientMutationId String?  @db.VarChar(120)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  trip     Trip          @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  fromItem ItineraryItem @relation("TripRoutePreferenceFromItem", fields: [fromItemId], references: [id], onDelete: Cascade)
+  toItem   ItineraryItem @relation("TripRoutePreferenceToItem", fields: [toItemId], references: [id], onDelete: Cascade)
+
+  @@unique([tripId, fromItemId, toItemId])
+  @@index([tripId])
+  @@index([fromItemId])
+  @@index([toItemId])
 }
 
 model Place {

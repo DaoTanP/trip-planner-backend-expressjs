@@ -111,4 +111,4 @@ Note
 - Cached route geometry is removed.
 - Route chain synchronization and repair are removed.
 - Comment and CollaborationEntity tables are removed.
-- Routes are derived data generated on demand by clients or future provider services.
+- Routes are derived data generated on demand by clients or future provider services. Persist only lightweight route intent, such as stop-pair travel mode preferences; do not persist route geometry, duration, distance, polylines, or provider output.

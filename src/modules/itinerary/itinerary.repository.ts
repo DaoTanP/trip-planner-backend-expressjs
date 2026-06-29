@@ -314,6 +314,12 @@ export class ItineraryRepository {
           ...(mutation.clientMutationId ? { lastClientMutationId: mutation.clientMutationId } : {})
         }
       });
+      await tx.tripRoutePreference.deleteMany({
+        where: {
+          tripId: mutation.tripId,
+          OR: [{ fromItemId: id }, { toItemId: id }]
+        }
+      });
       const revision = await appendMutationEvent(tx, {
         ...mutation,
         entityType: 'ITINERARY_ITEM',

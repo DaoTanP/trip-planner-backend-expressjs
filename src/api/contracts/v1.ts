@@ -148,6 +148,7 @@ export type ItineraryItemTypeDto =
   | 'TRANSPORTATION'
   | 'OTHER';
 export type ItineraryItemStatusDto = 'PLANNED' | 'BOOKED' | 'COMPLETED' | 'CANCELLED';
+export type RouteTravelModeDto = 'driving' | 'walking' | 'bicycling' | 'transit';
 
 export type TripSummaryDto = {
   id: string;
@@ -251,6 +252,17 @@ export type ItineraryItemDto = {
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
+};
+
+export type TripRoutePreferenceDto = {
+  id: string;
+  tripId: string;
+  fromItemId: string;
+  toItemId: string;
+  travelMode: RouteTravelModeDto;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type NoteDto = {
@@ -431,6 +443,19 @@ export type ReorderItineraryItemsRequestDto = {
 export type ReorderItineraryItemsResponseDto = {
   item: ItineraryItemDto;
   affectedItems?: ItineraryItemDto[];
+  revision: string;
+  clientMutationId?: string;
+};
+
+export type UpsertTripRoutePreferenceRequestDto = {
+  travelMode: RouteTravelModeDto;
+  expectedRevision?: string;
+  clientMutationId?: string;
+  deviceId?: string;
+};
+
+export type UpsertTripRoutePreferenceResponseDto = {
+  routePreference: TripRoutePreferenceDto;
   revision: string;
   clientMutationId?: string;
 };
@@ -701,6 +726,17 @@ export type ApiV1Paths = {
     patch: {
       request: ReorderItineraryItemsRequestDto;
       response: ApiSuccessResponse<ReorderItineraryItemsResponseDto>;
+    };
+  };
+  '/trips/{tripId}/route-preferences': {
+    get: {
+      response: ApiSuccessResponse<{ routePreferences: TripRoutePreferenceDto[] }>;
+    };
+  };
+  '/trips/{tripId}/route-preferences/{fromItemId}/{toItemId}': {
+    put: {
+      request: UpsertTripRoutePreferenceRequestDto;
+      response: ApiSuccessResponse<UpsertTripRoutePreferenceResponseDto>;
     };
   };
   '/itinerary-items/{itemId}': {
