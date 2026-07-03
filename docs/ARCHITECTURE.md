@@ -470,7 +470,7 @@ Services validate that the moved item and neighbors belong to the target trip be
 
 Mutations echo `clientMutationId` where useful, increment row `version`, and may reject stale `expectedVersion` values. Mutations that operate inside a trip may also accept `expectedRevision`; if the trip has moved forward, the API returns `409 REVISION_CONFLICT` with `currentRevision`, `latestTripRevision`, optional `entityVersion`, and optional `latestEntity`. This gives clients enough context to roll back or reconcile optimistic work without fetching a full trip tree.
 
-A lightweight `ClientMutation` table records mutation IDs, device IDs, operations, and revisions for idempotency, future websocket dedupe, and offline/mobile replay. Services check this table before applying replayable mutations and return the canonical entity state for duplicate `clientMutationId` requests rather than applying the same intent twice.
+A lightweight `ClientMutation` table records mutation IDs, device IDs, operations, and revisions for idempotency, websocket echo dedupe, and offline/mobile replay. Services check this table before applying replayable mutations and return the canonical entity state for duplicate `clientMutationId` requests rather than applying the same intent twice.
 
 Every trip-affecting write also increments `Trip.revision` and appends a `MutationEvent` row in the same database transaction. `MutationEvent` is an append-only debugging, sync catch-up, and future fanout log; it is not event sourcing, and reads still come from normalized tables. Revisions are serialized as strings because PostgreSQL `BIGINT` can outgrow JavaScript's safe integer range.
 
@@ -494,28 +494,127 @@ Routes are derived data. The backend does not persist route structures, cached r
 
 `Budget` is configuration only: currency, total limit, and metadata. It must not persist calculated spending aggregates.
 
-## 26. Realtime Preparation
+## 26. Collaboration Realtime Gateway
 
-Realtime collaboration should be added as a transport over the same domain services, not as a parallel write path.
+Realtime collaboration is a transport over the same domain services, not a parallel write path.
 
-Recommended future shape:
+The websocket gateway lives under `src/modules/collaboration` and attaches to the Node HTTP server at `/ws/collaboration`. It is not mounted as an Express route. Connections authenticate with the same access JWT used by HTTP requests, either through cookies or bearer/query-token clients, and every trip subscription is authorized through `TripsService.getAccessContext`.
 
-- Services append durable mutation events and increment trip revisions during the same committed write.
-- Redis coordinates websocket fanout and presence.
-- `clientMutationId` and optional `deviceId` suppress echo updates for the originating client/device.
-- Clients can catch up with `GET /trips/:tripId/mutation-events?sinceRevision=<revision>` or cursor pagination before applying future websocket patches.
-- The frontend patches or invalidates granular React Query caches from realtime events.
+Phase 2 splits realtime responsibilities into explicit runtime boundaries:
 
-Do not let websocket handlers bypass `TripsService.ensureCanEditTrip` or itinerary service validation.
+```text
+CollaborationGateway
+  -> CollaborationService
+  -> ConnectionManager
+  -> CollaborationEventDispatcher
+  -> CollaborationPresenceService
+  -> PresenceRepository
+  -> Redis
+```
+
+The gateway owns only HTTP upgrade, origin checks, websocket authentication, and first trip authorization. `CollaborationService` coordinates lifecycle, room subscription, middleware, handler dispatch, Redis Pub/Sub fanout, presence projection, and typed error responses. `ConnectionManager` owns in-memory socket lifecycle only: connection registration, multiple tabs/devices, duplicate reconnect cleanup, trip membership, heartbeat pings, and graceful shutdown. It is not the source of truth for presence.
+
+Implemented responsibilities:
+
+- Redis stores ephemeral presence in `trip:presence` hashes under `COLLABORATION_REDIS_PREFIX`.
+- `RedisPresenceRepository` hides Redis key layout from service logic and supports future Redis Cluster or key-model migrations.
+- Presence snapshots return `PresenceProjection` objects and metadata: `snapshotVersion`, `presenceRevision`, `generatedAt`, and `activeUserCount`.
+- Redis Pub/Sub fans out trip-scoped collaboration events across backend instances.
+- All outbound websocket messages are wrapped in a standard envelope with `id`, `timestamp`, `generatedAt`, `eventType`, `type`, `tripId`, `userId`, `eventSequence`, optional `presenceRevision`, optional `snapshotVersion`, and focused `payload`.
+- `eventSequence` is a per-trip Redis counter for websocket delivery gap detection. It is intentionally separate from durable `Trip.revision`.
+- Presence revisions are an ephemeral Redis stream version for awareness snapshots. They must not be compared to trip revisions.
+- Presence, focus, cursor, and editing indicators never touch PostgreSQL, never create `MutationEvent`, and never increment `Trip.revision`.
+- Durable writes still append `MutationEvent` rows and increment trip revisions through existing services.
+- `trip.updated` websocket messages carry normalized mutation metadata: `entityType`, `entityId`, `operation`, `revision`, `version`, `changedFields`, a focused patch payload, and the corresponding lightweight `MutationEvent` DTO when available. They never carry a full trip graph.
+- Clients acknowledge received websocket sequences with `connection.ack`; the backend records the latest acknowledged sequence per connection as a reliability boundary for future resend/session-resume work.
+- Targeted `revision.conflict` websocket messages are sent only to the actor whose HTTP mutation hit optimistic concurrency.
+- Websocket handlers may authorize trip access, but they must not perform durable trip mutations or bypass service validation.
+- Incoming websocket payloads go through a middleware pipeline: Zod validation, rate limiting, authorization in handlers, cursor throttling, and typed handler dispatch.
+- Observability boundaries are exposed through `collaborationMetrics` for active connections/users, joins/leaves, reconnects, heartbeat timeouts, presence updates, revision conflicts, websocket errors, validation failures, rate limits, cursor drops, and Redis failures.
+
+Clients can reconnect by opening the websocket, authenticating, subscribing to a trip, receiving a current `presence.snapshot`, and resuming heartbeat. Historical presence is never replayed.
+
+If a client detects a skipped `eventSequence`, it should request a fresh snapshot with `trip.subscribe`. Snapshot recovery repairs ephemeral awareness state only. Durable trip state reconciles by comparing `Trip.revision`, fetching missing mutation events, applying normalized patches, and falling back to scoped refetch only when a patch cannot be applied safely.
 
 ## 27. Delta Sync Runtime Contract
 
 `GET /trips/:tripId/mutation-events` supports `sinceRevision`, legacy `afterRevision`, `cursor`, and `limit`. Results are ordered by `(revision, id)` and return `latestRevision`, `hasMore`, and `nextCursor`. Consumers should apply events in response order and persist the latest applied revision separately from UI state.
 
-Delta sync is a catch-up boundary, not a replacement for normalized reads. If a client detects a revision gap, it should fetch mutation events, apply patch payloads to granular caches, and fall back to refetching the affected resource only when an event cannot be applied deterministically.
+Delta sync is a recovery boundary, not the primary realtime transport after page load. Normal successful mutations emit `trip.updated` events through the collaboration publisher so clients can patch granular caches directly. If a client reconnects after downtime, detects a revision gap, or receives an unpatchable event, it should fetch mutation events, apply patch payloads to granular caches, and fall back to refetching the affected resource only when an event cannot be applied deterministically.
+
+Offline-capable clients should replay queued HTTP mutations in `createdAt` order with the original `clientMutationId`, `deviceId`, expected entity version, and expected trip revision. The backend remains idempotent: duplicate replay attempts return canonical state, stale replay attempts return `REVISION_CONFLICT`, and successful replay appends one `MutationEvent` that is fanned out as a normalized realtime patch.
 
 ## 28. Planner Workspace API Boundary
 
 The planner workspace is a frontend composition over granular resources. Backend APIs provide normalized trip metadata, stop-first itinerary items, places, notes, collaborators, expenses, budget configuration, and mutation events. The backend should not add a nested planner workspace DTO, `TripDay` grouping, persisted route DTO, or form-specific trip editor response.
 
 Planner UX features such as derived date range, timeline grouping, route-gap warnings, idle-gap warnings, selected-item note panels, map hover state, and command palette state are client concerns. Add backend endpoints only when the computation is expensive, permission-sensitive, or shared across clients, and keep those endpoints normalized and cacheable.
+
+## 29. Planning Intelligence Layer
+
+Planning intelligence lives in `src/modules/planning-intelligence`. It is a read-only derived-data module over the existing trip aggregate. It does not own planner writes, does not persist recommendation state, and does not modify itinerary order automatically.
+
+The module exposes dedicated endpoints:
+
+- `GET /trips/:tripId/analysis`
+- `GET /trips/:tripId/recommendations`
+- `GET /trips/:tripId/optimization`
+- `GET /trips/:tripId/insights`
+- `POST /trips/:tripId/optimize`
+
+`POST /optimize` returns a version-aware preview only. Applying a recommended order remains an explicit future itinerary mutation using the existing optimistic concurrency and sync contracts.
+
+Runtime boundaries:
+
+```text
+PlanningIntelligenceController
+  -> PlanningIntelligenceService
+  -> PlanningIntelligenceRepository
+  -> normalized trip snapshot
+  -> deterministic planning engine
+```
+
+The engine computes structured warnings, route optimization previews, schedule suggestions, map clusters, place recommendations, budget insights, collaboration summaries, filter facets, and a scored explanation. Recommendations use stable codes and params instead of prose that clients must parse.
+
+Current route optimization is deterministic and provider-ready. It uses place coordinates, haversine distance, stored route travel-mode preferences, and mode-specific speed estimates. Future Google, Mapbox, OSM, or internal routing providers should be added behind an estimator/provider boundary and must preserve the same output contract.
+
+Planning analysis is cached briefly by `(tripId, revision, optimization options)`. Because the cache key includes `Trip.revision`, successful trip mutations naturally invalidate derived recommendations without adding new persistent state. Presence and collaboration activity are read opportunistically; Redis presence failures must not break durable analysis.
+
+AI features must extend this layer through provider abstractions. Do not put AI prompts, semantic search, or itinerary generation directly into trip, itinerary, place, expense, or collaboration services.
+
+## 30. Planning Engine
+
+The deterministic business brain for trip quality lives in `src/modules/planning-engine`. It is independent from AI, provider SDKs, and UI code. The engine consumes the normalized trip snapshot and returns derived read models only; it never writes planner data and never applies suggestions automatically.
+
+Runtime boundaries:
+
+```text
+PlanningEngineController
+  -> PlanningEngineService
+  -> PlanningIntelligenceRepository snapshot adapter
+  -> PlanningAnalyzer
+       -> SchedulingService
+       -> TravelEstimator
+       -> RuleEngine
+       -> ValidationEngine
+       -> PlannerMetrics
+       -> SuggestionEngine
+```
+
+The public query model is separate from Trip DTOs:
+
+- `GET /trips/:tripId/planning`
+- `GET /trips/:tripId/planning/issues`
+- `GET /trips/:tripId/planning/metrics`
+- `GET /trips/:tripId/planning/suggestions`
+- `GET /trips/:tripId/planning/timeline`
+
+`SchedulingService` builds the timeline read model: scheduled state, duration, idle gaps, overlaps, duplicate visits, timezone mismatches, and late-night arrivals. `TravelEstimator` estimates adjacent route segments from place coordinates, stored travel-mode preferences, haversine distance, and mode speed defaults. It is provider-ready but does not persist routes or provider output.
+
+`RuleEngine` evaluates reusable constraints such as maximum walking distance, maximum daily driving, meal windows, accommodation for overnight trips, timezone transitions, and future opening-hours readiness. Validators transform facts and constraint failures into structured issues with severity, code, validation kind, affected entity IDs, message key, params, confidence, and recommended action code. No client should parse backend prose to understand planning state.
+
+`PlannerMetrics` returns derived metrics such as scheduled ratio, travel ratio, activity ratio, walking ratio, budget usage, place diversity, category diversity, total travel distance, total travel duration, and idle gaps. `SuggestionEngine` returns deterministic preview-only suggestions such as moving stops, inserting breaks or lunch, inserting lodging, merging duplicate visits, or reordering stops. Suggestions include reason codes, confidence, affected entities, blocking issue IDs, and estimated improvement.
+
+Planning read models are cached briefly by `(tripId, revision, travelMode)`. Every successful trip mutation still increments `Trip.revision`; the collaboration publisher also emits `planning.invalidated` so clients can invalidate planning query keys without refetching the entire editor. This invalidation event is advisory and carries no persistent state.
+
+Future AI systems must consume Planning Engine read models and may propose new suggestions through provider abstractions, but deterministic validation, constraints, metrics, and safety checks remain in this engine.

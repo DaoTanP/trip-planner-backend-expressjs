@@ -19,6 +19,16 @@ export const getRedisClient = (): RedisClientType => {
   return client;
 };
 
+export const duplicateRedisClient = (): RedisClientType => {
+  const duplicate = getRedisClient().duplicate() as RedisClientType;
+
+  duplicate.on('error', (error) => {
+    logger.error({ err: error }, 'Redis duplicate client error');
+  });
+
+  return duplicate;
+};
+
 export const connectRedis = async (): Promise<void> => {
   const redis = getRedisClient();
   if (!redis.isOpen) {

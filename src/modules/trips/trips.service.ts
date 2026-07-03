@@ -4,6 +4,7 @@ import { AuthorizationError } from '@/common/errors/authorization-error.js';
 import { NotFoundError } from '@/common/errors/not-found-error.js';
 import { RevisionConflictError } from '@/common/errors/revision-conflict-error.js';
 import { parseDateOnly } from '@/common/utils/date.js';
+import { publishRevisionConflict } from '@/modules/collaboration/events/collaboration-publisher.js';
 import { findIdempotentMutation } from '@/modules/sync/idempotency.js';
 import type {
   CreateTripInput,
@@ -20,6 +21,14 @@ export type TripAccessContext = {
   isOwner: boolean;
   canEdit: boolean;
   canModerate: boolean;
+};
+
+export type RevisionConflictBroadcastContext = {
+  actorId?: string | undefined;
+  entityType?: string | undefined;
+  entityId?: string | undefined;
+  operation?: string | undefined;
+  localPayload?: Record<string, unknown> | undefined;
 };
 
 export class TripsService {
@@ -89,7 +98,13 @@ export class TripsService {
       return replayedTrip;
     }
 
-    await this.ensureExpectedRevision(tripId, input.expectedRevision);
+    await this.ensureExpectedRevision(tripId, input.expectedRevision, undefined, {
+      actorId: userId,
+      entityType: 'TRIP',
+      entityId: tripId,
+      operation: 'ENTITY_UPDATED',
+      localPayload: input as Record<string, unknown>
+    });
 
     const data: Prisma.TripUpdateInput = {};
     if (input.title !== undefined) data.title = input.title;
@@ -197,7 +212,8 @@ export class TripsService {
   async ensureExpectedRevision(
     tripId: string,
     expectedRevision?: string,
-    details?: { entityVersion?: number; latestEntity?: Record<string, unknown> | null }
+    details?: { entityVersion?: number; latestEntity?: Record<string, unknown> | null },
+    broadcastContext?: RevisionConflictBroadcastContext
   ): Promise<void> {
     if (expectedRevision === undefined) {
       return;
@@ -220,6 +236,18 @@ export class TripsService {
       }
       if (details?.latestEntity !== undefined) {
         conflictDetails.latestEntity = details.latestEntity;
+      }
+
+      if (broadcastContext?.actorId) {
+        publishRevisionConflict({
+          userId: broadcastContext.actorId,
+          tripId,
+          entityType: broadcastContext.entityType ?? 'TRIP',
+          entityId: broadcastContext.entityId,
+          operation: broadcastContext.operation,
+          localPayload: broadcastContext.localPayload,
+          details: conflictDetails
+        });
       }
 
       throw new RevisionConflictError(conflictDetails);

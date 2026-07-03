@@ -46,7 +46,13 @@ export class RoutePreferencesService {
       return replay;
     }
 
-    await this.trips.ensureExpectedRevision(params.tripId, input.expectedRevision);
+    await this.trips.ensureExpectedRevision(params.tripId, input.expectedRevision, undefined, {
+      actorId: userId,
+      entityType: 'ROUTE_PREFERENCE',
+      entityId: `${params.fromItemId}:${params.toItemId}`,
+      operation: 'ENTITY_UPDATED',
+      localPayload: input as Record<string, unknown>
+    });
     await this.ensureItemsBelongToTrip(params.tripId, params.fromItemId, params.toItemId);
 
     return this.repository.upsertRoutePreference(

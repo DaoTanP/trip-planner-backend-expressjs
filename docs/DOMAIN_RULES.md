@@ -103,8 +103,26 @@ Note
 - Replayable mutations may include `clientMutationId` and `deviceId`.
 - Duplicate `clientMutationId` requests return canonical state when possible.
 - Mutation events are sync/debug/fanout records, not event sourcing.
+- Mutation event payloads must be normalized entity patches, not full trip snapshots.
+- Realtime `trip.updated` broadcasts are derived from successful durable mutations and must not create extra writes or change revision semantics.
+- Offline replay must use the original client mutation identity so idempotency and conflict handling remain backend-driven.
 
-## 10. Removed Concepts
+## 10. Collaboration Presence Rules
+
+- Presence is ephemeral and must never be stored in PostgreSQL.
+- Active user, focus, cursor, and editing state live only in Redis with TTL cleanup.
+- Presence has its own `presenceRevision`, `snapshotVersion`, and websocket `eventSequence`. These are awareness versions and must not be treated as `Trip.revision`.
+- Multiple browser tabs and devices are tracked independently. Reconnects from the same client/device may replace stale connections, but must not overwrite other tabs or devices.
+- Websocket responses expose `PresenceProjection` only. Do not leak Redis record shape or connection IDs to clients.
+- Activity state is derived from presence as Idle, Viewing, Editing, Dragging, or Disconnected. It is advisory UI state, not a domain lock.
+- Editing presence is advisory. It must never lock entities or block writes.
+- Websocket clients may only subscribe to trips they can access as owner, editor, viewer, or admin.
+- Viewers may publish focus presence, but durable edits still require existing service-level edit authorization.
+- Presence updates must not create `MutationEvent`, increment `Trip.revision`, or invalidate durable caches.
+- Cursor and focus updates should be rate limited or throttled before Pub/Sub fanout.
+- Shared selection, map focus, drag previews, follow mode, and live cursors are ephemeral collaboration state. They may guide the UI but must not persist, lock entities, or override optimistic concurrency.
+
+## 11. Removed Concepts
 
 - RouteSegment is removed.
 - Route persistence is removed.
@@ -112,3 +130,25 @@ Note
 - Route chain synchronization and repair are removed.
 - Comment and CollaborationEntity tables are removed.
 - Routes are derived data generated on demand by clients or future provider services. Persist only lightweight route intent, such as stop-pair travel mode preferences; do not persist route geometry, duration, distance, polylines, or provider output.
+
+## 12. Planning Intelligence Rules
+
+- Planning intelligence is derived data and must not be persisted as source-of-truth planner state.
+- Recommendations are optional. The backend must never reorder stops, change schedules, add places, or update budgets automatically.
+- Route optimization returns a preview with recommended item IDs, estimated savings, confidence, and assumptions. Applying any recommendation must go through existing mutation APIs with optimistic concurrency.
+- Planning warnings use structured codes, categories, severities, entity references, and params. Clients must not parse backend prose to understand warnings.
+- Planning scores must expose dimension scores and explanation keys. Do not return unexplained magic numbers.
+- Budget insights are derived from `Expense` and `Budget`; never persist calculated remaining budget, projected spend, or category totals.
+- Map grouping is presentation-only. Do not reintroduce `TripDay`, route segments, or persisted group entities.
+- Future AI providers may generate recommendations, but deterministic services remain the boundary that validates permissions, versions, and output shape.
+
+## 13. Planning Engine Rules
+
+- Planning Engine read models are derived from normalized trips, itinerary items, places, route preferences, expenses, budget, notes, collaborators, and mutation events.
+- Planning Engine outputs must not be stored as source-of-truth data. Do not persist issues, metrics, timeline segments, route estimates, scores, or suggestions.
+- Every validation returns structured data: severity, code, validation kind, message key, affected entity IDs, params, confidence, and recommended action. Avoid boolean validation APIs.
+- Constraint logic must be reusable. Add new constraints to the rule engine instead of hardcoding one-off checks in controllers, services, or UI components.
+- Suggestions are preview-only and optional. Applying a suggestion must use normal mutation APIs with optimistic concurrency, `clientMutationId`, row version checks, and trip revision checks.
+- Travel estimates are derived. Do not persist calculated route geometry, duration, distance, provider response, unreachable state, or warning labels.
+- Budget planning uses `Expense` and `Budget` only. Do not store derived daily spend, remaining budget, overspending, or expensive-destination aggregates.
+- Planning invalidation is realtime cache guidance only. It must not create extra database writes or change `Trip.revision`.

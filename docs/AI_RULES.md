@@ -300,6 +300,22 @@ AI agents changing the trip editor backend must:
 - Use stable spaced `sortOrder`, row `version`, optional `expectedVersion`, `clientMutationId`, optional `deviceId`, trip `revision`, and `ClientMutation` records for optimistic/realtime-safe mutations.
 - Append `MutationEvent` rows in the same transaction as trip-affecting writes. Treat the event log as a sync/fanout/debug foundation, not as event sourcing.
 - Keep `GET /trips/:tripId/mutation-events` revision-based and permission-checked through trip access rules.
+- Keep websocket infrastructure inside `src/modules/collaboration`; do not put websocket logic in Express route files.
+- Use Redis only for collaboration presence and fanout. Do not persist presence, cursors, focus, or editing indicators in PostgreSQL.
+- Authenticate websocket connections with existing JWT/cookie auth and authorize trip subscriptions through `TripsService`.
+- Keep websocket lifecycle in `ConnectionManager`, orchestration in `CollaborationService`, Redis persistence behind `PresenceRepository`, and HTTP upgrade/authentication in `CollaborationGateway`.
+- Validate incoming websocket payloads with Zod before handlers run. Reject invalid, unauthorized, or rate-limited events with typed collaboration errors.
+- Emit collaboration events through the typed event registry and standard envelope. Preserve `eventSequence`, `presenceRevision`, and snapshot metadata for recovery.
+- Expose projected presence to clients. Do not send raw Redis records or backend connection IDs.
+- Broadcast only lightweight normalized `trip.updated` mutation metadata and patches. Do not broadcast full trip graphs.
+- Keep `connection.ack` as the websocket delivery acknowledgement boundary. Do not use it as durable sync state or compare it with `Trip.revision`.
+- Keep `GET /trips/:tripId/mutation-events` as the recovery path for missed websocket events, reconnects, and offline replay gaps.
+- Preserve `clientMutationId` and `deviceId` on replayable mutations so realtime echo suppression and backend idempotency remain reliable.
+- Keep deterministic planning logic inside `src/modules/planning-engine`. Keep planning intelligence compatibility/readout logic inside `src/modules/planning-intelligence`. Do not put analysis, validation, constraints, optimization, recommendation, scoring, or AI-provider logic inside trip, itinerary, place, expense, budget, sync, or collaboration services.
+- Add reusable planning rules through `RuleEngine`, `ValidationEngine`, `PlannerMetrics`, `TravelEstimator`, `SchedulingService`, or `SuggestionEngine` as appropriate. Do not add planner business rules to controllers or frontend components.
+- Treat `/trips/:tripId/planning*` responses as derived read models. They must be permission-checked and version-aware, but they must not mutate itinerary, schedule, route, budget, or place data.
+- Return planning recommendations as derived, version-aware previews. Do not automatically apply recommended order, schedule, budget, or place changes.
+- Use structured planning codes, severities, entity references, params, confidence, assumptions, and score dimensions. Do not make the frontend parse prose.
 - Serialize trip detail responses through `trip.serializer.ts` and keep them metadata-only.
 - Return itinerary, threaded notes, places, collaborators, expenses, budget configuration, and mutation events through granular endpoints. Cursor paginate large collaborative resources.
 - Treat `Expense` as the source of truth for spending and `Budget` as configuration only. Derived spending totals must come from expense queries.
@@ -311,6 +327,11 @@ AI agents must not:
 
 - Return raw Prisma trip graphs to the frontend.
 - Let websocket or future realtime handlers bypass permission checks.
+- Let presence updates create `MutationEvent`, increment `Trip.revision`, or write to planner tables.
+- Use `Trip.revision` for ephemeral presence versioning.
+- Add entity locks, CRDT, or operational transform under the presence module.
+- Persist planning scores, route optimization output, heatmaps, projected spend, or recommendation text as planner source of truth.
+- Couple future AI prompts or provider SDK calls directly to core business services.
 - Move itinerary items across trips.
 - Reintroduce required `dayId` ownership for itinerary items.
 - Recreate `Destination` as an itinerary-location entity.

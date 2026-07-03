@@ -57,7 +57,13 @@ export class BudgetService {
       };
     }
 
-    await this.trips.ensureExpectedRevision(tripId, input.expectedRevision);
+    await this.trips.ensureExpectedRevision(tripId, input.expectedRevision, undefined, {
+      actorId: userId,
+      entityType: 'BUDGET',
+      entityId: tripId,
+      operation: 'ENTITY_UPDATED',
+      localPayload: input as Record<string, unknown>
+    });
 
     const data: Omit<Prisma.BudgetUncheckedCreateInput, 'tripId'> = {};
     if (input.currency !== undefined) data.currency = input.currency;

@@ -55,7 +55,12 @@ export class ItineraryService {
       return replay;
     }
 
-    await this.trips.ensureExpectedRevision(tripId, input.expectedRevision);
+    await this.trips.ensureExpectedRevision(tripId, input.expectedRevision, undefined, {
+      actorId: userId,
+      entityType: 'ITINERARY_ITEM',
+      operation: 'ENTITY_CREATED',
+      localPayload: input as Record<string, unknown>
+    });
 
     const result = await this.repository.createItineraryItem(
       this.toCreateData(tripId, input),
@@ -102,14 +107,25 @@ export class ItineraryService {
       return replay;
     }
 
-    await this.trips.ensureExpectedRevision(access.tripId, input.expectedRevision, {
-      entityVersion: access.version,
-      latestEntity: {
-        id: itemId,
-        tripId: access.tripId,
-        version: access.version
+    await this.trips.ensureExpectedRevision(
+      access.tripId,
+      input.expectedRevision,
+      {
+        entityVersion: access.version,
+        latestEntity: {
+          id: itemId,
+          tripId: access.tripId,
+          version: access.version
+        }
+      },
+      {
+        actorId: userId,
+        entityType: 'ITINERARY_ITEM',
+        entityId: itemId,
+        operation: 'ENTITY_UPDATED',
+        localPayload: input as Record<string, unknown>
       }
-    });
+    );
 
     if (input.expectedVersion !== undefined && input.expectedVersion !== access.version) {
       throw new ConflictError('Itinerary item version conflict');
@@ -164,14 +180,25 @@ export class ItineraryService {
       return;
     }
 
-    await this.trips.ensureExpectedRevision(access.tripId, query.expectedRevision, {
-      entityVersion: access.version,
-      latestEntity: {
-        id: itemId,
-        tripId: access.tripId,
-        version: access.version
+    await this.trips.ensureExpectedRevision(
+      access.tripId,
+      query.expectedRevision,
+      {
+        entityVersion: access.version,
+        latestEntity: {
+          id: itemId,
+          tripId: access.tripId,
+          version: access.version
+        }
+      },
+      {
+        actorId: userId,
+        entityType: 'ITINERARY_ITEM',
+        entityId: itemId,
+        operation: 'ENTITY_DELETED',
+        localPayload: query as Record<string, unknown>
       }
-    });
+    );
 
     await this.repository.softDeleteItineraryItem(itemId, {
       tripId: access.tripId,
@@ -203,14 +230,25 @@ export class ItineraryService {
       throw new ConflictError('Itinerary reorder payload contains an item outside this trip');
     }
 
-    await this.trips.ensureExpectedRevision(tripId, input.expectedRevision, {
-      entityVersion: access.version,
-      latestEntity: {
-        id: input.itemId,
-        tripId,
-        version: access.version
+    await this.trips.ensureExpectedRevision(
+      tripId,
+      input.expectedRevision,
+      {
+        entityVersion: access.version,
+        latestEntity: {
+          id: input.itemId,
+          tripId,
+          version: access.version
+        }
+      },
+      {
+        actorId: userId,
+        entityType: 'ITINERARY_ITEM',
+        entityId: input.itemId,
+        operation: 'ENTITY_MOVED',
+        localPayload: input as Record<string, unknown>
       }
-    });
+    );
 
     if (input.expectedVersion !== undefined && input.expectedVersion !== access.version) {
       throw new ConflictError('Itinerary reorder payload contains a stale item version');

@@ -4,13 +4,16 @@ import { logger } from '@/common/logger/logger.js';
 import { env } from '@/config/env.js';
 import { connectRedis, disconnectRedis } from '@/config/redis.js';
 import { createApp } from '@/app.js';
+import { createCollaborationGateway } from '@/modules/collaboration/gateway/collaboration.gateway.js';
 import { disconnectPrisma } from '@/prisma/client.js';
 
 const app = createApp();
 const server = http.createServer(app);
+const collaborationGateway = createCollaborationGateway(server);
 
 const start = async () => {
   await connectRedis();
+  await collaborationGateway.start();
 
   server.listen(env.APP_PORT, () => {
     logger.info(
@@ -24,7 +27,7 @@ const start = async () => {
   });
 };
 
-const shutdown = async (signal: NodeJS.Signals) => {
+const shutdown = (signal: NodeJS.Signals) => {
   logger.info({ signal }, 'HTTP server shutdown requested');
 
   server.close((error) => {
@@ -34,6 +37,7 @@ const shutdown = async (signal: NodeJS.Signals) => {
     }
 
     void (async () => {
+      await collaborationGateway.stop();
       await disconnectRedis();
       await disconnectPrisma();
       logger.info('HTTP server stopped');
@@ -42,12 +46,8 @@ const shutdown = async (signal: NodeJS.Signals) => {
   });
 };
 
-process.on('SIGINT', (signal) => {
-  void shutdown(signal);
-});
-process.on('SIGTERM', (signal) => {
-  void shutdown(signal);
-});
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
 
 start().catch((error: unknown) => {
   logger.fatal({ err: error }, 'Failed to start HTTP server');

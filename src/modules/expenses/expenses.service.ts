@@ -61,7 +61,12 @@ export class ExpensesService {
       return replay;
     }
 
-    await this.trips.ensureExpectedRevision(tripId, input.expectedRevision);
+    await this.trips.ensureExpectedRevision(tripId, input.expectedRevision, undefined, {
+      actorId: userId,
+      entityType: 'EXPENSE',
+      operation: 'ENTITY_CREATED',
+      localPayload: input as Record<string, unknown>
+    });
     await this.ensureLinksBelongToTrip(
       tripId,
       input.categoryId,
@@ -115,14 +120,25 @@ export class ExpensesService {
       return replay;
     }
 
-    await this.trips.ensureExpectedRevision(access.tripId, input.expectedRevision, {
-      entityVersion: access.version,
-      latestEntity: {
-        id: expenseId,
-        tripId: access.tripId,
-        version: access.version
+    await this.trips.ensureExpectedRevision(
+      access.tripId,
+      input.expectedRevision,
+      {
+        entityVersion: access.version,
+        latestEntity: {
+          id: expenseId,
+          tripId: access.tripId,
+          version: access.version
+        }
+      },
+      {
+        actorId: userId,
+        entityType: 'EXPENSE',
+        entityId: expenseId,
+        operation: 'ENTITY_UPDATED',
+        localPayload: input as Record<string, unknown>
       }
-    });
+    );
 
     if (input.expectedVersion !== undefined && input.expectedVersion !== access.version) {
       throw new ConflictError('Expense version conflict');
@@ -187,14 +203,25 @@ export class ExpensesService {
       return;
     }
 
-    await this.trips.ensureExpectedRevision(access.tripId, query.expectedRevision, {
-      entityVersion: access.version,
-      latestEntity: {
-        id: expenseId,
-        tripId: access.tripId,
-        version: access.version
+    await this.trips.ensureExpectedRevision(
+      access.tripId,
+      query.expectedRevision,
+      {
+        entityVersion: access.version,
+        latestEntity: {
+          id: expenseId,
+          tripId: access.tripId,
+          version: access.version
+        }
+      },
+      {
+        actorId: userId,
+        entityType: 'EXPENSE',
+        entityId: expenseId,
+        operation: 'ENTITY_DELETED',
+        localPayload: query as Record<string, unknown>
       }
-    });
+    );
 
     await this.repository.softDeleteExpense(expenseId, {
       tripId: access.tripId,

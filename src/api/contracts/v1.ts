@@ -149,6 +149,491 @@ export type ItineraryItemTypeDto =
   | 'OTHER';
 export type ItineraryItemStatusDto = 'PLANNED' | 'BOOKED' | 'COMPLETED' | 'CANCELLED';
 export type RouteTravelModeDto = 'driving' | 'walking' | 'bicycling' | 'transit';
+export type PlanningTravelModeDto = RouteTravelModeDto | 'mixed';
+export type PlanningOptimizationStrategyDto =
+  | 'SHORTEST_DISTANCE'
+  | 'SHORTEST_TIME'
+  | 'WALKING'
+  | 'DRIVING'
+  | 'PUBLIC_TRANSPORT'
+  | 'MIXED';
+export type PlanningIssueSeverityDto = 'INFO' | 'WARNING' | 'CRITICAL';
+export type PlanningIssueCategoryDto =
+  | 'ITINERARY'
+  | 'ROUTE'
+  | 'SCHEDULE'
+  | 'MAP'
+  | 'BUDGET'
+  | 'COLLABORATION';
+export type PlanningInsightEntityTypeDto =
+  | 'TRIP'
+  | 'ITINERARY_ITEM'
+  | 'PLACE'
+  | 'EXPENSE'
+  | 'BUDGET'
+  | 'NOTE'
+  | 'COLLABORATOR'
+  | 'ROUTE';
+
+export type PlanningIssueDto = {
+  id: string;
+  code: string;
+  category: PlanningIssueCategoryDto;
+  severity: PlanningIssueSeverityDto;
+  entityType: PlanningInsightEntityTypeDto;
+  entityId: string | null;
+  relatedEntityIds: string[];
+  messageKey: string;
+  params: Record<string, string | number | boolean>;
+  confidence: number;
+};
+
+export type PlanningScoreDimensionDto = {
+  key:
+    | 'scheduleCompleteness'
+    | 'travelEfficiency'
+    | 'budgetHealth'
+    | 'collaborationCompleteness'
+    | 'itineraryConsistency';
+  score: number;
+  maxScore: number;
+  explanationKey: string;
+  signals: string[];
+};
+
+export type PlanningScoreDto = {
+  overall: number;
+  maxScore: number;
+  dimensions: PlanningScoreDimensionDto[];
+  explanationKey: string;
+};
+
+export type PlanningOptimizationStepDto = {
+  itemId: string;
+  placeId: string;
+  sequence: number;
+  recommendedSequence: number;
+  distanceFromPreviousMeters: number | null;
+  durationFromPreviousMinutes: number | null;
+};
+
+export type PlanningRouteOptimizationDto = {
+  tripId: string;
+  revision: string;
+  generatedAt: string;
+  strategy: PlanningOptimizationStrategyDto;
+  travelMode: PlanningTravelModeDto;
+  current: {
+    itemIds: string[];
+    distanceMeters: number;
+    durationMinutes: number;
+  };
+  recommended: {
+    itemIds: string[];
+    distanceMeters: number;
+    durationMinutes: number;
+  };
+  savings: {
+    distanceMeters: number;
+    durationMinutes: number;
+    distancePercentage: number;
+    durationPercentage: number;
+  };
+  confidence: {
+    score: number;
+    reasons: string[];
+  };
+  steps: PlanningOptimizationStepDto[];
+  assumptions: string[];
+};
+
+export type PlanningScheduleSuggestionDto = {
+  id: string;
+  type:
+    | 'ARRIVAL_TIME'
+    | 'DURATION'
+    | 'LUNCH_WINDOW'
+    | 'REST_PERIOD'
+    | 'HOTEL_CHECK_IN'
+    | 'HOTEL_CHECK_OUT';
+  itemId: string | null;
+  recommendedStartsAt: string | null;
+  recommendedDurationMinutes: number | null;
+  reasonCode: string;
+  confidence: number;
+};
+
+export type PlanningMapClusterDto = {
+  id: string;
+  centroid: { latitude: number; longitude: number };
+  itemIds: string[];
+  radiusMeters: number;
+  density: number;
+};
+
+export type PlanningMapInsightDto = {
+  clusters: PlanningMapClusterDto[];
+  isolatedStops: Array<{
+    itemId: string;
+    nearestItemId: string | null;
+    distanceMeters: number | null;
+  }>;
+  heatmap: Array<{
+    latitude: number;
+    longitude: number;
+    intensity: number;
+    itemCount: number;
+  }>;
+  groupingSuggestions: Array<{
+    id: string;
+    itemIds: string[];
+    reasonCode: string;
+  }>;
+};
+
+export type PlanningPlaceRecommendationDto = {
+  id: string;
+  source: 'INTERNAL' | 'GOOGLE' | 'MAPBOX' | 'OSM';
+  name: string;
+  categories: string[];
+  latitude: number | null;
+  longitude: number | null;
+  relatedItemIds: string[];
+  reasonCode: string;
+  confidence: number;
+};
+
+export type PlanningBudgetInsightDto = {
+  currency: string | null;
+  spentAmount: number;
+  budgetLimit: number | null;
+  remainingAmount: number | null;
+  usagePercentage: number | null;
+  projectedTotal: number | null;
+  projectedOverspendAmount: number | null;
+  categoryBreakdown: Array<{
+    categoryId: string | null;
+    categoryName: string;
+    amount: number;
+    percentage: number;
+  }>;
+  dailySpending: Array<{
+    date: string;
+    amount: number;
+  }>;
+  expensiveLocations: Array<{
+    itemId: string;
+    amount: number;
+  }>;
+  recommendations: Array<{
+    code: string;
+    severity: PlanningIssueSeverityDto;
+    params: Record<string, string | number | boolean>;
+  }>;
+};
+
+export type PlanningCollaborationInsightDto = {
+  activeCollaboratorCount: number;
+  pendingEditCount: number;
+  recentActivityCount: number;
+  activeCollaborators: Array<{
+    userId: string;
+    name: string;
+    avatarUrl: string | null;
+    activity: string;
+    focusedEntityType: string | null;
+    focusedEntityId: string | null;
+    editingEntityType: string | null;
+    editingEntityId: string | null;
+  }>;
+  contributorStats: Array<{
+    userId: string | null;
+    name: string;
+    mutationCount: number;
+    lastActivityAt: string | null;
+  }>;
+  editingHotspots: Array<{
+    entityType: string;
+    entityId: string | null;
+    mutationCount: number;
+  }>;
+};
+
+export type PlanningFilterFacetDto = {
+  key: string;
+  count: number;
+  params: Record<string, string | number | boolean>;
+};
+
+export type PlanningFilterInsightsDto = {
+  itemTypes: PlanningFilterFacetDto[];
+  statuses: PlanningFilterFacetDto[];
+  placeCategories: PlanningFilterFacetDto[];
+  scheduleStates: PlanningFilterFacetDto[];
+  budgetStates: PlanningFilterFacetDto[];
+  collaborators: PlanningFilterFacetDto[];
+  locationRadiusAnchors: Array<{
+    itemId: string;
+    radiusMeters: number;
+    nearbyItemCount: number;
+  }>;
+};
+
+export type PlanningRecommendationsDto = {
+  optimization: PlanningRouteOptimizationDto;
+  schedule: PlanningScheduleSuggestionDto[];
+  places: PlanningPlaceRecommendationDto[];
+  budget: PlanningBudgetInsightDto['recommendations'];
+};
+
+export type PlanningAnalysisDto = {
+  tripId: string;
+  revision: string;
+  generatedAt: string;
+  score: PlanningScoreDto;
+  issues: PlanningIssueDto[];
+  optimization: PlanningRouteOptimizationDto;
+  scheduleSuggestions: PlanningScheduleSuggestionDto[];
+  mapInsights: PlanningMapInsightDto;
+  placeRecommendations: PlanningPlaceRecommendationDto[];
+  budgetInsights: PlanningBudgetInsightDto;
+  collaborationInsights: PlanningCollaborationInsightDto;
+  filters: PlanningFilterInsightsDto;
+};
+
+export type PlanningInsightsDto = {
+  tripId: string;
+  revision: string;
+  generatedAt: string;
+  score: PlanningScoreDto;
+  issues: PlanningIssueDto[];
+  recommendations: PlanningRecommendationsDto;
+  mapInsights: PlanningMapInsightDto;
+  budgetInsights: PlanningBudgetInsightDto;
+  collaborationInsights: PlanningCollaborationInsightDto;
+  filters: PlanningFilterInsightsDto;
+};
+
+export type OptimizeTripRequestDto = {
+  strategy?: PlanningOptimizationStrategyDto;
+  travelMode?: PlanningTravelModeDto;
+  fixedStartItemId?: string | null;
+  fixedEndItemId?: string | null;
+};
+
+export type PlanningAnalysisResponseDto = {
+  analysis: PlanningAnalysisDto;
+};
+export type PlanningRecommendationsResponseDto = {
+  recommendations: PlanningRecommendationsDto;
+};
+export type PlanningOptimizationResponseDto = {
+  optimization: PlanningRouteOptimizationDto;
+};
+export type PlanningInsightsResponseDto = {
+  insights: PlanningInsightsDto;
+};
+
+export type PlanningEngineValidationKindDto =
+  | 'TripValidation'
+  | 'ScheduleValidation'
+  | 'BudgetValidation'
+  | 'RouteValidation'
+  | 'TimelineValidation'
+  | 'ConstraintValidation';
+
+export type PlanningEngineIssueCategoryDto =
+  | 'TRIP'
+  | 'TIMELINE'
+  | 'SCHEDULE'
+  | 'ROUTE'
+  | 'BUDGET'
+  | 'CONSTRAINT';
+
+export type PlanningEngineConstraintStatusDto = 'PASS' | 'WARN' | 'FAIL' | 'NOT_APPLICABLE';
+
+export type PlanningEngineSuggestionTypeDto =
+  | 'MOVE_EARLIER'
+  | 'MOVE_LATER'
+  | 'MERGE_NEARBY'
+  | 'INSERT_BREAK'
+  | 'INSERT_LUNCH'
+  | 'INSERT_HOTEL'
+  | 'REORDER_STOPS';
+
+export type PlanningEngineHealthStatusDto = 'HEALTHY' | 'NEEDS_ATTENTION' | 'AT_RISK';
+
+export type PlanningEngineIssueDto = {
+  id: string;
+  code: string;
+  severity: PlanningIssueSeverityDto;
+  category: PlanningEngineIssueCategoryDto;
+  validation: PlanningEngineValidationKindDto;
+  entityType: PlanningInsightEntityTypeDto | 'ROUTE_SEGMENT';
+  entityId: string | null;
+  affectedEntityIds: string[];
+  messageKey: string;
+  params: Record<string, string | number | boolean>;
+  recommendedActionCode: string;
+  confidence: number;
+};
+
+export type PlanningEngineTimelineSegmentDto = {
+  itemId: string;
+  placeId: string;
+  sequence: number;
+  sortOrder: number;
+  startsAt: string | null;
+  endsAt: string | null;
+  timezone: string;
+  durationMinutes: number;
+  status: string;
+  types: string[];
+  scheduled: boolean;
+  timezoneMismatch: boolean;
+  lateNightArrival: boolean;
+  duplicateVisit: boolean;
+  idleGapBeforeMinutes: number | null;
+  overlapPreviousMinutes: number | null;
+};
+
+export type PlanningEngineTravelSegmentDto = {
+  id: string;
+  fromItemId: string;
+  toItemId: string;
+  travelMode: PlanningTravelModeDto;
+  distanceMeters: number | null;
+  durationMinutes: number | null;
+  walkingFeasible: boolean | null;
+  longTransfer: boolean;
+  unreachable: boolean;
+  estimatedBy: 'HAVERSINE' | 'ROUTE_PROVIDER_READY';
+  warnings: string[];
+};
+
+export type PlanningEngineMetricDto = {
+  key:
+    | 'tripDurationDays'
+    | 'scheduledRatio'
+    | 'unscheduledRatio'
+    | 'travelRatio'
+    | 'activityRatio'
+    | 'walkingRatio'
+    | 'budgetUsage'
+    | 'placeDiversity'
+    | 'categoryDiversity'
+    | 'totalTravelDistance'
+    | 'totalTravelDuration'
+    | 'idleGapMinutes';
+  value: number;
+  unit: 'count' | 'ratio' | 'percent' | 'meters' | 'minutes' | 'days';
+  explanationKey: string;
+};
+
+export type PlanningEngineConstraintResultDto = {
+  id: string;
+  code: string;
+  status: PlanningEngineConstraintStatusDto;
+  severity: PlanningIssueSeverityDto;
+  affectedEntityIds: string[];
+  messageKey: string;
+  params: Record<string, string | number | boolean>;
+};
+
+export type PlanningEngineSuggestionDto = {
+  id: string;
+  type: PlanningEngineSuggestionTypeDto;
+  reasonCode: string;
+  confidence: number;
+  affectedEntityIds: string[];
+  blockingIssueIds: string[];
+  estimatedImprovement: {
+    distanceMeters?: number | undefined;
+    durationMinutes?: number | undefined;
+    scheduleMinutes?: number | undefined;
+    scoreDelta?: number | undefined;
+  };
+  preview: {
+    itemIds?: string[] | undefined;
+    insertAfterItemId?: string | null | undefined;
+    startsAt?: string | null | undefined;
+    durationMinutes?: number | undefined;
+  };
+};
+
+export type PlanningEngineTimelineDto = {
+  segments: PlanningEngineTimelineSegmentDto[];
+  scheduledItemCount: number;
+  unscheduledItemCount: number;
+  timezoneCount: number;
+  duplicatePlaceCount: number;
+};
+
+export type PlanningEngineRouteDto = {
+  travelMode: PlanningTravelModeDto;
+  segments: PlanningEngineTravelSegmentDto[];
+  totalDistanceMeters: number;
+  totalDurationMinutes: number;
+  longTransferCount: number;
+  unreachableSegmentCount: number;
+};
+
+export type PlanningEngineBudgetDto = {
+  currency: string | null;
+  spentAmount: number;
+  budgetLimit: number | null;
+  remainingAmount: number | null;
+  usagePercentage: number | null;
+  dailySpend: Array<{
+    date: string;
+    amount: number;
+  }>;
+  expensiveDestinations: Array<{
+    itemId: string;
+    amount: number;
+  }>;
+};
+
+export type PlanningEngineHealthDto = {
+  status: PlanningEngineHealthStatusDto;
+  score: number;
+  maxScore: number;
+  issueCounts: Record<PlanningIssueSeverityDto, number>;
+};
+
+export type PlanningEngineReadModelDto = {
+  tripId: string;
+  revision: string;
+  generatedAt: string;
+  health: PlanningEngineHealthDto;
+  timeline: PlanningEngineTimelineDto;
+  route: PlanningEngineRouteDto;
+  budget: PlanningEngineBudgetDto;
+  metrics: PlanningEngineMetricDto[];
+  constraints: PlanningEngineConstraintResultDto[];
+  issues: PlanningEngineIssueDto[];
+  suggestions: PlanningEngineSuggestionDto[];
+};
+
+export type PlanningEngineResponseDto = {
+  planning: PlanningEngineReadModelDto;
+};
+
+export type PlanningEngineIssuesResponseDto = {
+  issues: PlanningEngineIssueDto[];
+};
+
+export type PlanningEngineMetricsResponseDto = {
+  metrics: PlanningEngineMetricDto[];
+};
+
+export type PlanningEngineSuggestionsResponseDto = {
+  suggestions: PlanningEngineSuggestionDto[];
+};
+
+export type PlanningEngineTimelineResponseDto = {
+  timeline: PlanningEngineTimelineDto;
+};
 
 export type TripSummaryDto = {
   id: string;

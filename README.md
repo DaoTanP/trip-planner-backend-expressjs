@@ -177,7 +177,7 @@ Pino is configured for structured logs, request logging, redaction of secrets, a
 
 ## Redis And BullMQ
 
-Redis is wrapped in `src/config/redis.ts` and currently supports cache helpers plus rate limiting. BullMQ connection and defaults are centralized in `src/config/queue.ts`, with a notification queue and worker as the first background job boundary.
+Redis is wrapped in `src/config/redis.ts` and supports cache helpers, rate limiting, collaboration presence, and collaboration Pub/Sub fanout. BullMQ connection and defaults are centralized in `src/config/queue.ts`, with a notification queue and worker as the first background job boundary.
 
 ## Environment Variables
 
@@ -190,8 +190,14 @@ Use `.env.example` as the source of truth. Required production values include:
 - `GOOGLE_OAUTH_CLIENT_ID`
 - `AUTH_TOKEN_TRANSPORT`
 - `CORS_ORIGINS`
+- `COLLABORATION_WS_ENABLED`
+- `COLLABORATION_HEARTBEAT_INTERVAL`
+- `COLLABORATION_PRESENCE_TTL`
+- `COLLABORATION_REDIS_PREFIX`
 
 S3-compatible storage is configured through endpoint, region, bucket, access key, secret, and path-style options. This supports AWS S3, MinIO, R2, and other compatible providers behind the same interface.
+
+The collaboration websocket endpoint is `/ws/collaboration`. `COLLABORATION_HEARTBEAT_INTERVAL` and `COLLABORATION_PRESENCE_TTL` are milliseconds. For local frontend development, set `NEXT_PUBLIC_COLLABORATION_WS_URL=ws://localhost:4000/ws/collaboration`.
 
 ## Coding Conventions
 

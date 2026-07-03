@@ -66,7 +66,12 @@ export class NotesService {
       return replay;
     }
 
-    await this.trips.ensureExpectedRevision(target.tripId, input.expectedRevision);
+    await this.trips.ensureExpectedRevision(target.tripId, input.expectedRevision, undefined, {
+      actorId: actor.id,
+      entityType: 'NOTE',
+      operation: 'ENTITY_CREATED',
+      localPayload: input as Record<string, unknown>
+    });
 
     if (input.parentNoteId) {
       await this.ensureParentMatchesTarget(input.parentNoteId, target);
@@ -120,14 +125,25 @@ export class NotesService {
       return replay;
     }
 
-    await this.trips.ensureExpectedRevision(access.tripId, input.expectedRevision, {
-      entityVersion: access.version,
-      latestEntity: {
-        id: noteId,
-        tripId: access.tripId,
-        version: access.version
+    await this.trips.ensureExpectedRevision(
+      access.tripId,
+      input.expectedRevision,
+      {
+        entityVersion: access.version,
+        latestEntity: {
+          id: noteId,
+          tripId: access.tripId,
+          version: access.version
+        }
+      },
+      {
+        actorId: actor.id,
+        entityType: 'NOTE',
+        entityId: noteId,
+        operation: 'ENTITY_UPDATED',
+        localPayload: input as Record<string, unknown>
       }
-    });
+    );
 
     if (input.expectedVersion !== undefined && input.expectedVersion !== access.version) {
       throw new ConflictError('Note version conflict');
@@ -177,14 +193,25 @@ export class NotesService {
       return replay;
     }
 
-    await this.trips.ensureExpectedRevision(access.tripId, query.expectedRevision, {
-      entityVersion: access.version,
-      latestEntity: {
-        id: noteId,
-        tripId: access.tripId,
-        version: access.version
+    await this.trips.ensureExpectedRevision(
+      access.tripId,
+      query.expectedRevision,
+      {
+        entityVersion: access.version,
+        latestEntity: {
+          id: noteId,
+          tripId: access.tripId,
+          version: access.version
+        }
+      },
+      {
+        actorId: actor.id,
+        entityType: 'NOTE',
+        entityId: noteId,
+        operation: 'ENTITY_DELETED',
+        localPayload: query as Record<string, unknown>
       }
-    });
+    );
 
     return this.repository.softDeleteNote(noteId, {
       tripId: access.tripId,

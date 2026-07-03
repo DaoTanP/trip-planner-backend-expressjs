@@ -65,6 +65,11 @@ const envSchema = z.object({
     .default(15 * 60 * 1000),
   RATE_LIMIT_MAX: z.coerce.number().int().positive().default(300),
 
+  COLLABORATION_WS_ENABLED: booleanFromEnv.default(true),
+  COLLABORATION_HEARTBEAT_INTERVAL: z.coerce.number().int().positive().default(25_000),
+  COLLABORATION_PRESENCE_TTL: z.coerce.number().int().positive().default(45_000),
+  COLLABORATION_REDIS_PREFIX: z.string().trim().min(1).default('trip-planner:collaboration'),
+
   S3_ENDPOINT: z.string().optional(),
   S3_REGION: z.string().default('us-east-1'),
   S3_BUCKET: z.string().optional(),
